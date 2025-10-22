@@ -1,0 +1,323 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Inventory Count (Offline HTML5)</title>
+<style>
+  :root{
+    --bg:#0b0c10; --panel:#151821; --muted:#8ea0b5; --text:#eaf0f6;
+    --accent:#4f8cff; --ok:#29c076; --warn:#ffa31a; --danger:#ff5a5a; --border:#242a36;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font:16px/1.4 system-ui, -apple-system, Segoe UI, Roboto, Inter, Arial}
+  header{display:flex;gap:.5rem;align-items:center;padding:12px 16px;border-bottom:1px solid var(--border);background:var(--panel);position:sticky;top:0;z-index:5}
+  h1{font-size:18px;margin:0}
+  .btn{background:var(--accent);color:#fff;border:none;border-radius:10px;padding:10px 14px;font-weight:600;cursor:pointer}
+  .btn.secondary{background:#2a3142}
+  .btn.ghost{background:transparent;border:1px solid var(--border);color:var(--text)}
+  .btn:disabled{opacity:.5;cursor:not-allowed}
+  .wrap{max-width:980px;margin:0 auto;padding:16px}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:14px}
+  .row{display:flex;gap:12px;align-items:center;justify-content:space-between;padding:12px 10px;border-radius:12px;border:1px solid var(--border);margin-bottom:10px;background:#121520}
+  .row.click{cursor:pointer}
+  .row:hover{border-color:#2a3142}
+  .pill{font-size:12px;padding:4px 8px;border-radius:999px;background:#212636;color:var(--muted)}
+  .pill.ok{background:rgba(41,192,118,.15);color:#9af3ca}
+  .pill.warn{background:rgba(255,163,26,.15);color:#ffd28b}
+  .pill.muted{background:#1a1e29;color:#9aaac1}
+  label{font-size:13px;color:var(--muted);display:block;margin-bottom:6px}
+  input,select{width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:#0f121a;color:var(--text)}
+  .grid{display:grid;gap:14px}
+  .grid.cols2{grid-template-columns:repeat(2,1fr)}
+  .toolbar{display:flex;gap:8px;flex-wrap:wrap}
+  .link{color:#9ec1ff;cursor:pointer}
+  .spacer{flex:1}
+  .fade{opacity:.75}
+  .mini{font-size:12px;color:var(--muted)}
+  .success{color:#9af3ca}
+  .danger{color:#ffb2b2}
+  .center{display:flex;justify-content:center;align-items:center}
+  footer{padding:20px;color:var(--muted);text-align:center}
+</style>
+</head>
+<body>
+
+<header>
+  <button class="btn secondary" id="navBack" style="display:none">← Back</button>
+  <h1 id="title">Inventory</h1>
+  <div class="spacer"></div>
+  <div class="toolbar">
+    <label class="btn ghost" for="file">📄 Load template CSV</label>
+    <input id="file" type="file" accept=".csv" style="display:none">
+    <button class="btn ghost" id="exportBtn" title="Export today’s logs">⬇︎ Export logs</button>
+    <button class="btn ghost" id="clearBtn" title="Clear logs">🗑 Clear logs</button>
+  </div>
+</header>
+
+<div class="wrap">
+  <!-- Locations view -->
+  <section id="viewLocations" class="grid"></section>
+
+  <!-- Items view -->
+  <section id="viewItems" style="display:none"></section>
+
+  <!-- Item detail / count view -->
+  <section id="viewDetail" style="display:none"></section>
+</div>
+
+<footer>Offline demo · Data stored in your browser (localStorage)</footer>
+
+<script>
+/* =======================
+   Lightweight CSV parser
+   ======================= */
+function parseCSV(text){
+  // handles simple CSVs (quoted cells, commas)
+  const rows=[]; let i=0, cur='', inQ=false, row=[];
+  while(i<text.length){
+    const c=text[i], n=text[i+1];
+    if(c === '"' && inQ && n === '"'){ cur+='"'; i+=2; continue; }
+    if(c === '"'){ inQ=!inQ; i++; continue; }
+    if(c === ',' && !inQ){ row.push(cur.trim()); cur=''; i++; continue; }
+    if((c === '\n' || c === '\r') && !inQ){
+      if(cur.length || row.length){ row.push(cur.trim()); rows.push(row); row=[]; cur=''; }
+      // swallow \r\n
+      if(c === '\r' && n === '\n') i+=2; else i++;
+      continue;
+    }
+    cur+=c; i++;
+  }
+  if(cur.length || row.length) { row.push(cur.trim()); rows.push(row); }
+  const headers = rows.shift().map(h => h.trim().toLowerCase().replace(/\s+/g,'_'));
+  return rows.filter(r => r.some(x=>x)).map(r=>{
+    const o={};
+    headers.forEach((h,idx)=>o[h]=r[idx]??'');
+    return o;
+  });
+}
+
+/* =======================
+   State & utilities
+   ======================= */
+const state = {
+  template: [],         // array of rows from template CSV
+  byLocation: {},       // { location: [rows] }
+  currentLocation: null,
+  currentItem: null,
+  tz: 'America/Los_Angeles'
+};
+
+const $ = sel => document.querySelector(sel);
+function show(id){ ['viewLocations','viewItems','viewDetail'].forEach(s=>$( '#' + s ).style.display='none'); $( '#'+id ).style.display='block'; }
+function setTitle(t){ $('#title').textContent=t; }
+function todayLocal(){
+  // yyyy-mm-dd in store timezone (approx using local; can adjust to tz if needed)
+  // For accuracy, we’ll shift to desired IANA tz via Intl if supported:
+  try {
+    const fmt=new Intl.DateTimeFormat('en-CA',{timeZone:state.tz,year:'numeric',month:'2-digit',day:'2-digit'});
+    return fmt.format(new Date()); // YYYY-MM-DD
+  } catch(e){
+    return new Date().toISOString().slice(0,10);
+  }
+}
+const LOG_KEY = 'inv_logs_v1'; // localStorage key
+
+function readLogs(){
+  try { return JSON.parse(localStorage.getItem(LOG_KEY)) || []; } catch(e){ return []; }
+}
+function writeLogs(arr){ localStorage.setItem(LOG_KEY, JSON.stringify(arr)); }
+function upsertLog({template_id, item_id, item, location_id, storage_location, count_uofm, quantity, counted_by}){
+  const business_date = todayLocal();
+  const logs = readLogs();
+  const idx = logs.findIndex(l => l.template_id===template_id && l.business_date===business_date);
+  const base = { template_id, item_id, item, location_id, storage_location, count_uofm, quantity: Number(quantity), counted_by: counted_by || 'user', business_date, count_on: new Date().toISOString() };
+  if(idx>=0) logs[idx] = {...logs[idx], ...base};
+  else logs.push(base);
+  writeLogs(logs);
+  return base;
+}
+function latestLogForTemplate(template_id){
+  const logs = readLogs().filter(l => l.template_id===template_id);
+  if(!logs.length) return null;
+  // latest by count_on
+  return logs.sort((a,b)=>b.count_on.localeCompare(a.count_on))[0];
+}
+
+/* =======================
+   Rendering
+   ======================= */
+function indexByLocation(){
+  const map={};
+  state.template.forEach(row=>{
+    const loc = row.storage_location || row.location || row.location_name || 'Unknown';
+    (map[loc] ||= []).push(row);
+  });
+  state.byLocation = map;
+}
+function renderLocations(){
+  setTitle('Inventory');
+  $('#navBack').style.display='none';
+  show('viewLocations');
+  const root = $('#viewLocations');
+  root.className='grid';
+  root.innerHTML='';
+  Object.entries(state.byLocation).forEach(([loc,rows])=>{
+    const counted = rows.filter(r=> !!latestLogForTemplate(r.template_id)).length;
+    const el = document.createElement('div');
+    el.className='row click';
+    el.innerHTML = `
+      <div>
+        <div style="font-weight:700">${loc}</div>
+        <div class="mini">Items: ${rows.length}</div>
+      </div>
+      <div class="pill ${counted? 'ok':'muted'}">${counted? counted + ' counted' : 'not started'}</div>
+    `;
+    el.onclick = ()=>{ state.currentLocation = loc; renderItems(loc); };
+    root.appendChild(el);
+  });
+}
+
+function renderItems(loc){
+  setTitle(loc);
+  $('#navBack').style.display='inline-block';
+  show('viewItems');
+  const root = $('#viewItems');
+  root.innerHTML='';
+  const rows = state.byLocation[loc] || [];
+  rows.forEach(row=>{
+    const last = latestLogForTemplate(row.template_id);
+    const counted = !!last && last.business_date === todayLocal();
+    const badge = counted ? `<span class="pill ok">counted</span>` : `<span class="pill muted">pending</span>`;
+    const qty = counted ? `<span class="mini success">Last: ${last.quantity} ${last.count_uofm}</span>` : '';
+    const el = document.createElement('div');
+    el.className='row click';
+    el.style.borderColor = counted ? 'rgba(41,192,118,.35)' : 'var(--border)';
+    el.innerHTML = `
+      <div style="display:flex;gap:10px;flex-direction:column">
+        <div style="font-weight:700">${row.item || row.item_name || ('Item '+row.item_id)}</div>
+        <div class="mini fade">ID: ${row.item_id} • Template: ${row.template_id}</div>
+        ${qty}
+      </div>
+      ${badge}
+    `;
+    el.onclick = ()=>{ state.currentItem = row; renderDetail(row); };
+    root.appendChild(el);
+  });
+}
+
+function renderDetail(row){
+  setTitle('Edit Item');
+  $('#navBack').style.display='inline-block';
+  show('viewDetail');
+  const uoms = [row.uof_m, row.uof_m_2, row.uof_m_3].filter(Boolean);
+  const last = latestLogForTemplate(row.template_id);
+  const countedToday = last && last.business_date === todayLocal();
+  $('#viewDetail').innerHTML = `
+    <div class="card grid" style="gap:16px">
+      <div>
+        <div style="font-weight:700;font-size:18px">${row.item || row.item_name}</div>
+        <div class="mini fade">Location: ${row.storage_location || state.currentLocation} • Item ID: ${row.item_id}</div>
+      </div>
+      <div class="grid cols2">
+        <div>
+          <label>Unit of Measure</label>
+          <select id="uomSel">
+            <option value="">Select…</option>
+            ${uoms.map(u=>`<option value="${u}">${u}</option>`).join('')}
+          </select>
+        </div>
+        <div>
+          <label>Quantity</label>
+          <input id="qtyInp" type="number" min="0" step="0.01" placeholder="0" />
+        </div>
+      </div>
+      ${last ? `<div class="mini">Last count: <b>${last.quantity} ${last.count_uofm}</b> on <span class="fade">${last.business_date}</span></div>` : `<div class="mini fade">No previous count</div>`}
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <button class="btn" id="saveBtn">Save</button>
+        <button class="btn secondary" id="backBtn">Back</button>
+        <span class="spacer"></span>
+        <span class="mini fade">Store day: ${todayLocal()}</span>
+      </div>
+      ${countedToday ? `<div class="pill ok">This item already has a count today. Saving will update it.</div>` : ''}
+    </div>
+  `;
+  $('#backBtn').onclick = ()=> renderItems(state.currentLocation);
+  $('#saveBtn').onclick = ()=>{
+    const uom = $('#uomSel').value;
+    const qty = $('#qtyInp').value;
+    if(!uom){ alert('Choose a UoM'); return; }
+    if(!qty || Number(qty)<=0){ alert('Enter a quantity > 0'); return; }
+    const saved = upsertLog({
+      template_id: row.template_id,
+      item_id: row.item_id,
+      item: row.item || row.item_name,
+      location_id: row.location_id || row.storage_location || state.currentLocation,
+      storage_location: row.storage_location || state.currentLocation,
+      count_uofm: uom,
+      quantity: qty,
+      counted_by: 'user'
+    });
+    alert('Saved: ' + saved.quantity + ' ' + saved.count_uofm);
+    renderItems(state.currentLocation);
+  };
+}
+
+/* =======================
+   Actions: file, export, clear
+   ======================= */
+$('#file').addEventListener('change', e=>{
+  const f = e.target.files[0]; if(!f) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    state.template = parseCSV(reader.result);
+    if(!state.template.length){ alert('No rows parsed. Check CSV columns.'); return; }
+    indexByLocation();
+    renderLocations();
+  };
+  reader.readAsText(f);
+});
+
+$('#exportBtn').onclick = ()=>{
+  const logs = readLogs();
+  if(!logs.length){ alert('No logs yet.'); return; }
+  const headers = Object.keys(logs[0]);
+  const csv = [headers.join(',')]
+    .concat(logs.map(r=>headers.map(h=>{
+      const v = r[h] ?? '';
+      const s = String(v).replace(/"/g,'""');
+      return (/,|\n|"/.test(s)) ? `"${s}"` : s;
+    }).join(',')))
+    .join('\n');
+  const blob = new Blob([csv], {type:'text/csv'});
+  const url = URL.createObjectURL(blob);
+  const a = Object.assign(document.createElement('a'), {href:url, download:`count_logs_${todayLocal()}.csv`});
+  document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+};
+
+$('#clearBtn').onclick = ()=>{
+  if(confirm('Clear all logs (localStorage)?')){ writeLogs([]); alert('Cleared'); renderLocations(); }
+};
+
+$('#navBack').onclick = ()=>{
+  if($('#viewDetail').style.display==='block') renderItems(state.currentLocation);
+  else renderLocations();
+};
+
+/* =======================
+   Demo data (optional)
+   ======================= */
+const demoCSV = `storage_location,location_id,template_id,item_id,item,uof_m,uof_m_2,uof_m_3
+Cooler,C,"C_1",1,AVOCADO WHOLE,Case - 48/Each,,
+Cooler,C,"C_12",12,PATE CHAUD FILLING,Case,,,
+Cooler,C,"C_14",14,BATTER Waffle,Case - 22/LB,lb,
+Dry,D,"D_11",11,SUGAR Packets,Case,Box,Each
+Freezer,F,"F_31",31,DOUGH CROISSANT Almond,Case - 96/Each,Tray,Each
+Freezer,F,"F_24",24,LOOSE EGG (L) AA,Case - 15/Dozen,Dozen,Each
+`;
+state.template = parseCSV(demoCSV);
+indexByLocation();
+renderLocations();
+</script>
+</body>
+</html>
