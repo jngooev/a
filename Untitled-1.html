@@ -338,15 +338,28 @@ const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbzj4kQfA1x1wI9o9oDY
 
 // Load template from Sheets (CSV)
 async function loadTemplateFromSheets() {
-  const res = await fetch(`${WEB_APP_URL}?mode=csv`, { method: 'GET' });
+  const res = await fetch(`${WEB_APP_URL}?mode=csv`);
   if (!res.ok) throw new Error('Failed to fetch template CSV');
   const csv = await res.text();
   state.template = parseCSV(csv);
   indexByLocation();
   renderLocations();
 }
+async function syncLogsToSheets() {
+  const logs = readLogs();
+  if (!logs.length) { alert('No logs to sync'); return; }
+
+  const res = await fetch(WEB_APP_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain' },   // <— avoids preflight
+    body: JSON.stringify({ action: 'appendLogs', rows: logs })
+  });
+  const json = await res.json();
+  if (json.ok) alert(`Synced ${json.inserted} rows`); else alert('Sync failed: ' + json.error);
+}
 
 </script>
 </body>
 </html>
+
 
