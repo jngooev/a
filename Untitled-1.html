@@ -336,31 +336,37 @@ if('serviceWorker' in navigator){
 
 const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbyZ6z6upxAaTgHHv0PrKfmy98tdzJexyceQnx5SI_k/dev';
 
-// Load template from Sheets (CSV)
 async function loadTemplateFromSheets() {
-  const res = await fetch(`${WEB_APP_URL}?mode=csv`);
-  if (!res.ok) throw new Error('Failed to fetch template CSV');
-  const csv = await res.text();
-  state.template = parseCSV(csv);
+  const url = `${WEB_APP_URL}?mode=json&nocache=${Date.now()}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Template fetch failed: ${res.status}`);
+  const json = await res.json();
+
+  if (!json.ok || !Array.isArray(json.data)) {
+    console.error('Template error:', json);
+    throw new Error(json.error || 'Bad template response');
+  }
+
+  const cleaned = json.data.map(row => {
+    // lower-case keys for robustness
+    const lowered = Object.fromEntries(
+      Object.entries(row).map(([k,v]) => [String(k).toLowerCase().replace(/\s+/g,'_'), v])
+    );
+    return normalizeRow(lowered);
+  }).filter(r => r.template_id); // drop blank rows
+
+  if (!cleaned.length) {
+    throw new Error('No usable rows after normalization. Check header names.');
+  }
+
+  state.template = cleaned;
   indexByLocation();
   renderLocations();
-}
-async function syncLogsToSheets() {
-  const logs = readLogs();
-  if (!logs.length) { alert('No logs to sync'); return; }
 
-  const res = await fetch(WEB_APP_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'text/plain' },   // <— avoids preflight
-    body: JSON.stringify({ action: 'appendLogs', rows: logs })
-  });
-  const json = await res.json();
-  if (json.ok) alert(`Synced ${json.inserted} rows`); else alert('Sync failed: ' + json.error);
+  // Optional: sanity log
+  console.log('Loaded template rows:', cleaned.length, cleaned.slice(0,3));
 }
 
-</script>
-</body>
-</html>
 
 
 
