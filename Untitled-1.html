@@ -334,15 +334,19 @@ if('serviceWorker' in navigator){
   // navigator.serviceWorker.register('/sw.js'); // uncomment when you add a service worker
 }
 
-/* ========= Demo data so the page loads immediately ========= */
-const demoCSV=`storage_location,location_id,template_id,item_id,item,uof_m,uof_m_2,uof_m_3
-Cooler,C,C_1,1,AVOCADO WHOLE,Case - 48/Each,,
-Cooler,C,C_14,14,BATTER Waffle,Case - 22/LB,lb,
-Dry,D,D_11,11,SUGAR Packets,Case,Box,Each
-Freezer,F,F_31,31,DOUGH CROISSANT Almond,Case - 96/Each,Tray,Each
-Freezer,F,F_24,24,LOOSE EGG (L) AA,Case - 15/Dozen,Dozen,Each`;
-state.template = parseCSV(demoCSV);
-indexByLocation(); renderLocations();
+const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbzj4kQfA1x1wI9o9oDYqgPhb12J_8i5sGr68hRU0RaekWS5ecFErq12ziINAecJIi8/exec';
+
+// Load template from Sheets (CSV)
+async function loadTemplateFromSheets() {
+  const res = await fetch(`${WEB_APP_URL}?mode=csv`, { method: 'GET' });
+  if (!res.ok) throw new Error('Failed to fetch template CSV');
+  const csv = await res.text();
+  state.template = parseCSV(csv);
+  indexByLocation();
+  renderLocations();
+}
+
 </script>
 </body>
 </html>
+
