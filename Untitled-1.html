@@ -118,9 +118,7 @@
     <button id="clearBtn" class="btn ghost">Clear logs</button>
   </div>
 </main>
-
 <script>
-/* ========= CSV parser (simple) ========= */
 function parseCSV(text){
   const rows=[]; let i=0, cell='', inQ=false, row=[];
   while(i<text.length){
@@ -366,6 +364,7 @@ async function loadTemplateFromSheets() {
   // Optional: sanity log
   console.log('Loaded template rows:', cleaned.length, cleaned.slice(0,3));
 }
+
 
 
 
