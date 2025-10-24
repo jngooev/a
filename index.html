@@ -29,7 +29,7 @@
   .title{font-weight:600}
   .muted{color:var(--muted)}
   .pill{display:inline-block;padding:.2rem .55rem;border:1px solid var(--border);border-radius:999px;color:var(--muted);margin-right:6px}
-  .pill.today{background:var(--accent2);border-color:var(--accent2);color:#001a10;font-weight:600}
+  .pill.today{background:var(--accent2);border-color:var(--accent2);color:#001a10;font-weight:600} /* Added for Today's Count */
   .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
   @media (min-width:520px){.grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
   .empty{padding:26px;text-align:center;color:var(--muted)}
@@ -47,7 +47,7 @@
     <div class="wrap row">
       <div class="title">Inventory</div>
       <div class="push row">
-        <button id="syncBtn" class="btn success" title="Send logs to Google">Sync</button>
+        <button id="syncBtn" class="btn success" title="Refresh count logs from Google">Refresh</button>
         <button id="exportBtn" class="btn">Export logs</button>
         <button id="clearBtn" class="btn warn">Clear logs</button>
       </div>
@@ -118,16 +118,32 @@ function nowISO(){ return new Date().toISOString(); }
 function readLogs(){ try{return JSON.parse(localStorage.getItem(STORAGE_KEY)||'[]')}catch{return[]} }
 function writeLogs(rows){ localStorage.setItem(STORAGE_KEY, JSON.stringify(rows)); }
 
-// NEW: Index logs by Item ID AND Location ID
-function indexLogs(logs){ 
+// REVISED: Index logs by Item ID AND Location ID, prioritizing newest entry via robust sorting
+function indexLogs(logRows){ 
+  // 1. Group all logs by a unique item/location key
+  const logsByKey = new Map();
+  for(const r of logRows){
+    const key = `${r.item_id}@${r.location_id}`; 
+    if(!logsByKey.has(key)) logsByKey.set(key, []);
+    logsByKey.get(key).push(r);
+  }
+  
+  // 2. Clear the old state map and rebuild it with only the newest entry per key
   state.logsByItemLoc = new Map();
-  for(const r of logs){
-    const key = `${r.item_id}@${r.location_id}`; // Use combined key
-    // Keep only the latest log entry for the item_id@location_id
-    const existing = state.logsByItemLoc.get(key);
-    if(!existing || r.count_on > existing.count_on){
-      state.logsByItemLoc.set(key, r);
-    }
+  for(const [key, logs] of logsByKey){
+      // Sort logs by count_on (ISO string) descending. ISO strings sort chronologically.
+      // We use .localeCompare for safe string comparison which works for ISO dates.
+      logs.sort((a,b) => String(b.count_on || '').localeCompare(String(a.count_on || '')));
+      
+      // The first element is the newest log for this item/location combination.
+      state.logsByItemLoc.set(key, logs[0]);
+  }
+
+  // Re-render only if the template is already loaded.
+  if(state.template.length > 0) {
+      renderLocations();
+      // Only attempt to open the location if one was already open
+      if(state.currentLocation) openLocation(state.currentLocation);
   }
 }
 
@@ -164,10 +180,52 @@ async function loadTemplateFromSheets(){
     indexByLocation();
     renderLocations();
     setStatus(`Loaded ${rows.length} items • ${new Set(rows.map(r=>r.storage_location)).size} locations`);
+    
+    // CRITICAL: Load logs after template is successful
+    await loadLogsFromSheets();
+
   }catch(err){
     console.error(err);
     setStatus('Load failed: '+ err.message);
     alert('Load failed: ' + err.message);
+  }
+}
+
+// NEW: Fetch Count Logs from Sheets (READ-ONLY)
+async function loadLogsFromSheets(){
+  const url = `${WEB_APP_URL}?mode=logs&nocache=${Date.now()}`;
+  setStatus('Loading count logs from spreadsheet...');
+  try{
+    const res = await fetch(url);
+    if(!res.ok) throw new Error(`HTTP ${res.status}`);
+    const json = await res.json();
+    if(!json.ok || !Array.isArray(json.data)) throw new Error(json.error || 'Bad logs response');
+    
+    // Ensure all required fields are present and correctly typed for remote logs
+    const remoteLogs = json.data.map(r => ({
+        ...r,
+        // Ensure ISO format for count_on for comparison
+        count_on: r.count_on || nowISO(), 
+        // Ensure date field is present for 'today' check
+        business_date: String(r.business_date || today()).substring(0, 10), // Ensures YYYY-MM-DD format
+        // Ensure quantities are parsed as numbers for correct display
+        quantity_1: parseFloat(r.quantity_1 || 0),
+        quantity_2: parseFloat(r.quantity_2 || 0),
+        quantity_3: parseFloat(r.quantity_3 || 0),
+    }));
+
+    // CRITICAL FIX: Combine local logs (which might have unsynced data) with new remote logs.
+    const localLogs = readLogs(); 
+    const allLogsToMerge = localLogs.concat(remoteLogs);
+
+    // Index the complete set to get the single latest count per item/location
+    indexLogs(allLogsToMerge); 
+    setStatus(`Logs loaded. ${remoteLogs.length} remote logs merged with local cache.`);
+
+  }catch(err){
+    console.error('Remote log loading failed:', err);
+    setStatus('Template loaded. Warning: Failed to load remote logs.'); 
+    // Do not alert, allow app to continue if log loading fails
   }
 }
 
@@ -190,15 +248,22 @@ function renderLocations(){
   const wrap = $('#locList'); wrap.innerHTML='';
   if(state.byLocation.size===0){ wrap.innerHTML = `<div class="empty">No locations</div>`; return; }
   
+  const todayKey = today();
   const todayCountedByLoc = new Map();
-  const logs = readLogs().filter(l => l.business_date === today());
-  for(const l of logs) { 
-    const loc = l.storage_location || 'Unknown';
-    if(!todayCountedByLoc.has(loc)) todayCountedByLoc.set(loc, new Set());
-    todayCountedByLoc.get(loc).add(l.item_id);
+  
+  // Iterate over all the latest logs (local + remote)
+  for(const [key, log] of state.logsByItemLoc){ 
+    const loc = log.storage_location || 'Unknown';
+    // CRITICAL: Check if the log's business_date matches today
+    if(log.business_date === todayKey){ 
+        if(!todayCountedByLoc.has(loc)) todayCountedByLoc.set(loc, new Set());
+        // Use item_id for counting unique items
+        todayCountedByLoc.get(loc).add(log.item_id); 
+    }
   }
 
   for(const [loc, rows] of state.byLocation){
+    // Get the number of unique items counted today in this location
     const itemsCounted = todayCountedByLoc.get(loc)?.size || 0;
     const btn = document.createElement('button');
     btn.className='btn';
@@ -229,19 +294,26 @@ function openLocation(loc){
     
     if(lastCount){
       // Display the first quantity/UoM entry as the primary indicator
-      const primaryQty = lastCount['quantity_1'] || lastCount.quantity_1 || lastCount.quantity; 
-      const primaryUofm = lastCount['count_uofm_1'] || lastCount.count_uofm_1 || lastCount.count_uofm;
+      const primaryQty = lastCount['quantity_1']; 
+      const primaryUofm = lastCount['count_uofm_1']; 
       
-      if (primaryQty > 0) {
-        const isToday = lastCount.business_date === today();
+      // Changed from (primaryQty > 0) to check if a quantity was recorded (0 is a recorded quantity)
+      // Check if primaryQty is a non-negative number and primaryUofm exists
+      if (primaryQty >= 0 && primaryUofm) { 
+        // CRITICAL: Check the business_date field in the log entry
+        const isToday = lastCount.business_date === today(); 
         const countDate = new Date(lastCount.count_on).toLocaleDateString();
         const countTime = new Date(lastCount.count_on).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
         const pillClass = isToday ? 'today' : '';
+        // REVISED: If it's today, show "Today [Time]". Otherwise, show "[Date] [Time]".
+        const dateDisplay = isToday 
+          ? `Today ${countTime}` 
+          : `${countDate} ${countTime}`;
         
         // Last count info display (quantity, uofm, date)
         lastCountHtml = `<div class="row" style="gap:8px;margin-top:6px;font-size:0.9em;font-weight:400">
           <span class="pill ${pillClass}">${primaryQty} ${primaryUofm}</span>
-          <span class="muted">${isToday ? `Today ${countTime}` : countDate}</span>
+          <span class="muted">${dateDisplay}</span>
         </div>`;
       }
     }
@@ -256,11 +328,18 @@ function openLocation(loc){
 }
 
 /* ========= Bottom sheet (Multi-Count) ========= */
+// REVISED: Forces 'Select UoM' placeholder as the default/selected option.
 function getUofmOptionsHtml(row){
   const units = [row.uof_m,row.uof_m_2,row.uof_m_3].filter(Boolean);
   if(units.length === 0) units.push('EA'); // Default if none defined
   
-  return units.map(u => `<option value="${u}">${u}</option>`).join('');
+  // Add placeholder option: value="" is important for validation
+  let optionsHtml = '<option value="" disabled selected>Select UoM</option>';
+
+  // Append actual options
+  optionsHtml += units.map(u => `<option value="${u}">${u}</option>`).join('');
+  
+  return optionsHtml;
 }
 
 function createCountRow(row, container){
@@ -277,7 +356,7 @@ function createCountRow(row, container){
   qtyInput.placeholder = '0';
   qtyInput.className = 'qtyInp';
   qtyInput.style.flex = '3';
-  qtyInput.value = '';
+  qtyInput.value = ''; // Ensure quantity starts empty (no default 0)
 
   // UoM select
   const uofmSelect = document.createElement('select');
@@ -295,8 +374,8 @@ function createCountRow(row, container){
     if(container.querySelectorAll('.count-row').length > 1){
       container.removeChild(wrapper);
     } else {
-      qtyInput.value = ''; // Just clear the last one
-      uofmSelect.selectedIndex = 0;
+      qtyInput.value = ''; // Just clear the quantity
+      uofmSelect.value = ''; // Reset UoM to the empty placeholder value
     }
   };
 
@@ -322,8 +401,9 @@ function openSheet(row){
 function closeSheet(){ $('#sheet').style.display='none'; }
 
 
-// Add button handler - Must be wired up outside of load in the DOMContentLoaded listener below
+// Add button handler
 document.addEventListener('DOMContentLoaded', () => {
+  // ... other event listeners ...
   const addCountBtn = $('#addCountBtn');
   if (addCountBtn) {
     addCountBtn.addEventListener('click', () => {
@@ -333,77 +413,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 });
-
-
-/* ========= Save log (NEW: Save single consolidated log row) ========= */
-async function saveCount(){ 
-  const r = state.currentItem; if(!r) return;
-  const entriesContainer = $('#countEntries');
-  const countRows = entriesContainer.querySelectorAll('.count-row');
-  const allLogs = readLogs();
-  const todayKey = today();
-  
-  // 1. Gather all count data from the UI
-  const countData = [];
-  for(const rowEl of countRows){
-    const qty = parseFloat(rowEl.querySelector('.qtyInp').value || '0');
-    const uofm = rowEl.querySelector('.uofmSel').value || '';
-    if(qty > 0 || uofm){ 
-        countData.push({ quantity: qty, uofm: uofm });
-    }
-  }
-
-  if(countData.length === 0) {
-      closeSheet();
-      setStatus('No quantity entered. Count canceled.');
-      return;
-  }
-  
-  // 2. Build the single consolidated log row (up to 3 UoM/Qty pairs)
-  const consolidatedLog = {
-    business_date: todayKey,
-    count_on: nowISO(),
-    storage_location: r.storage_location,
-    location_id: r.location_id,
-    template_id: r.template_id,
-    item_id: r.item_id,
-    item: r.item,
-    'count_uofm_1': countData[0]?.uofm || '',
-    'quantity_1': countData[0]?.quantity || 0,
-    'count_uofm_2': countData[1]?.uofm || '',
-    'quantity_2': countData[1]?.quantity || 0,
-    'count_uofm_3': countData[2]?.uofm || '',
-    'quantity_3': countData[2]?.quantity || 0,
-    counted_by: '' // optional
-  };
-  
-  // 3. Update Local Storage (Upsert: Find existing log for the same item/location/day and replace it)
-  const logKey = `${r.item_id}@${r.location_id}`;
-  const idx = allLogs.findIndex(x => 
-      `${x.item_id}@${x.location_id}` === logKey && x.business_date === todayKey
-  );
-  
-  if(idx>=0) allLogs[idx] = consolidatedLog; 
-  else allLogs.push(consolidatedLog);
-  
-  writeLogs(allLogs);
-  indexLogs(allLogs); 
-  closeSheet();
-  
-  setStatus(`Saved count • Syncing...`);
-  
-  // 4. Auto-Sync the new consolidated row immediately
-  const success = await syncSingleRowToGoogle(consolidatedLog);
-  
-  // 5. Re-render the current view
-  if(success){
-    setStatus(`Saved & Synced • ${r.item} (${countData.length} entries)`);
-  } else {
-    setStatus(`Saved (Local Only) • ${r.item} (${countData.length} entries)`);
-  }
-  renderLocations();
-  if(state.currentLocation) openLocation(state.currentLocation);
-}
 
 // optional: send ONE row to Google (Apps Script doPost)
 async function syncSingleRowToGoogle(row){
@@ -422,7 +431,84 @@ async function syncSingleRowToGoogle(row){
   }
 }
 
-/* ========= Export / Clear / Sync (Updated for Logs) ========= */
+/* ========= Save log (Local Save and Auto-Sync) ========= */
+async function saveCount(){ 
+  const r = state.currentItem; if(!r) return;
+  const entriesContainer = $('#countEntries');
+  const countRows = entriesContainer.querySelectorAll('.count-row');
+  const allLogs = readLogs();
+  const todayKey = today();
+  
+  // 1. Gather all count data from the UI and perform validation
+  const countData = [];
+  for(const rowEl of countRows){
+    // Use parseFloat to get the quantity as a number (NaN if empty or non-numeric)
+    const qty = parseFloat(rowEl.querySelector('.qtyInp').value); 
+    // The value will be an empty string if the 'Select UoM' placeholder is chosen
+    const uofm = rowEl.querySelector('.uofmSel').value; 
+    
+    // MODIFIED: Only capture valid counts if UoM is selected AND Quantity is a valid number (0 or greater).
+    // The input has min="0", so we just need to ensure it's not NaN (i.e., not empty).
+    if(uofm !== '' && !isNaN(qty)) { 
+        countData.push({ quantity: qty, uofm: uofm });
+    }
+  }
+
+  // --- VALIDATION CHECK ---
+  if(countData.length === 0) {
+      alert('Error: You must enter a quantity (0 or greater) AND select a Unit of Measure (UoM) for at least one entry before saving.');
+      return; // Stop the save process
+  }
+  
+  // 2. Build the single consolidated log row (up to 3 UoM/Qty pairs)
+  // *** USING UNDERSCORE KEYS (snake_case) to match Apps Script ***
+  const consolidatedLog = {
+    business_date: todayKey,
+    count_on: nowISO(), // ISO string is correct
+    storage_location: r.storage_location,
+    location_id: r.location_id,
+    template_id: r.template_id,
+    item_id: r.item_id,
+    item: r.item,
+    'count_uofm_1': countData[0]?.uofm || '',
+    'quantity_1': countData[0]?.quantity || 0,
+    'count_uofm_2': countData[1]?.uofm || '',
+    'quantity_2': countData[1]?.quantity || 0,
+    'count_uofm_3': countData[2]?.uofm || '',
+    'quantity_3': countData[2]?.quantity || 0,
+    counted_by: '' // optional
+  };
+  
+  // 3. Update Local Storage 
+  const logKey = `${r.item_id}@${r.location_id}`;
+  const idx = allLogs.findIndex(x => 
+      `${x.item_id}@${x.location_id}` === logKey && x.business_date === todayKey
+  );
+  
+  if(idx>=0) allLogs[idx] = consolidatedLog; 
+  else allLogs.push(consolidatedLog);
+  
+  writeLogs(allLogs);
+  
+  // CRITICAL FIX: Index the full, updated local array. This ensures today's count is immediately visible.
+  indexLogs(allLogs); 
+  closeSheet();
+  
+  // 4. AUTO-SYNC the new consolidated row immediately
+  setStatus(`Saved count • Syncing...`);
+  const success = await syncSingleRowToGoogle(consolidatedLog);
+  
+  // 5. Update Status Message based on sync result
+  if(success){
+    setStatus(`Saved & Synced • ${r.item} (${countData.length} entries)`);
+  } else {
+    // Advise user to use the Refresh button to pull data from the sheet if sync failed
+    setStatus(`Saved (Local Only) • ${r.item} (${countData.length} entries). Press Refresh to pull the latest sheet data.`);
+  }
+}
+
+
+/* ========= Export / Clear / Refresh Logs (READ-ONLY) ========= */
 function toCSV(rows){
   if(!rows.length) return '';
   const headers = Object.keys(rows[0]);
@@ -443,29 +529,19 @@ function exportLogs(){
   download(`count_logs_${today()}.csv`, toCSV(rows));
 }
 function clearLogs(){
-  if(!confirm('Clear all saved logs on this device?')) return;
+  if(!confirm('Clear all saved logs on this device? This cannot be undone.')) return;
   writeLogs([]); 
   indexLogs([]);
   setStatus('Logs cleared');
   renderLocations(); 
 }
 
-// optional: send ALL logs to Google (Apps Script doPost)
-async function syncToGoogle(){
-  const rows = readLogs();
-  if(!rows.length){ alert('No logs to sync'); return; }
-  try{
-    const res = await fetch(WEB_APP_URL, {
-      method:'POST',
-      headers:{'Content-Type':'text/plain'}, // avoid CORS preflight
-      body: JSON.stringify({ action:'appendLogs', rows })
-    });
-    const json = await res.json();
-    if(json.ok){ setStatus(`Synced ${json.inserted} rows to Google`); }
-    else{ throw new Error(json.error||'Failed'); }
-  }catch(err){
-    console.error(err); alert('Sync failed: '+err.message);
-  }
+// Function wired to the "Refresh" button (id=syncBtn) to READ logs
+async function refreshLogsFromSheet(){
+  setStatus('Manually refreshing logs from Google Sheet...');
+  
+  // Calls loadLogsFromSheets which performs the fetch, merge, and UI update (READ only)
+  await loadLogsFromSheets();
 }
 
 
@@ -477,11 +553,13 @@ document.addEventListener('DOMContentLoaded', () => {
   $('#saveBtn').addEventListener('click', saveCount);
   $('#exportBtn').addEventListener('click', exportLogs);
   $('#clearBtn').addEventListener('click', clearLogs);
-  $('#syncBtn').addEventListener('click', syncToGoogle);
+  
+  // Wire the "Refresh" button (id=syncBtn) to the log-reading function
+  $('#syncBtn').addEventListener('click', refreshLogsFromSheet);
 
   // AUTO-LOAD the Google Sheet template on page load
-  indexLogs(readLogs());
-  loadTemplateFromSheets();
+  indexLogs(readLogs()); // 1. Load local logs first
+  loadTemplateFromSheets(); // 2. Load template, then load remote logs (ONLY ONCE)
 });
 </script>
 </body>
