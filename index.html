@@ -2,7 +2,10 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta
+  name="viewport"
+  content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1"
+/>
 <title>Inventory Count (Mobile)</title>
 <style>
   :root{
@@ -11,11 +14,12 @@
     --radius:14px; --pad:14px;
   }
   *{box-sizing:border-box}
+  html{ -webkit-text-size-adjust:100% }
   body{margin:0;background:var(--bg);color:var(--text);font:16px/1.35 system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial}
   header{position:sticky;top:0;z-index:2;background:linear-gradient(#0b0e10,#0b0e1090);backdrop-filter:saturate(140%) blur(6px);padding:14px 16px;border-bottom:1px solid var(--border)}
   .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
   .push{margin-left:auto}
-  .btn{background:#111826;border:1px solid var(--border);color:var(--text);padding:10px 14px;border-radius:999px;cursor:pointer}
+  .btn{background:#111826;border:1px solid var(--border);color:var(--text);padding:10px 16px;border-radius:999px;cursor:pointer;min-height:44px}
   .btn.primary{background:var(--accent);border-color:var(--accent);color:#00131e}
   .btn.success{background:var(--accent2);border-color:var(--accent2);color:#001a10}
   .btn.warn{background:var(--warn);border-color:var(--warn);color:#2b1b00}
@@ -37,7 +41,11 @@
   .backdrop{position:fixed;inset:0;background:#0009;display:none;align-items:flex-end;justify-content:center;z-index:5}
   .sheet{background:var(--card);border:1px solid var(--border);border-bottom:none;border-radius:16px 16px 0 0;width:100%;max-width:720px;padding:16px}
   label{display:block;margin:10px 0 6px}
-  input,select{width:100%;background:#0f1520;border:1px solid var(--border);color:var(--text);padding:10px;border-radius:10px}
+  input,select,textarea,button{font-size:16px;line-height:1.35}
+  input,select{
+    width:100%;background:#0f1520;border:1px solid var(--border);color:var(--text);
+    padding:12px 14px;border-radius:12px;min-height:46px
+  }
   .row-end{display:flex;gap:10px;justify-content:flex-end;margin-top:14px}
 
   /* Login */
@@ -50,6 +58,25 @@
   #loadingOverlay{position:fixed;inset:0;background:rgba(0,0,0,0.6);display:none;align-items:center;justify-content:center;z-index:99}
   .spinner{width:70px;height:70px;border:6px solid #999;border-top:6px solid var(--accent);border-radius:50%;animation:spin 1s linear infinite}
   @keyframes spin {from{transform:rotate(0)} to{transform:rotate(360deg)}}
+
+  /* Mobile niceties */
+  body{ touch-action: manipulation; }
+  /* Number inputs: keep numeric keypad but remove tiny spinners */
+  input[type="number"]{
+  appearance: textfield;            /* ← standard */
+  -moz-appearance: textfield;       /* Firefox */
+  -webkit-appearance: none;         /* Safari/iOS old versions */
+}
+
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button{
+  appearance: none;                  /* ← standard */
+  -webkit-appearance: none;          /* WebKit */
+  margin: 0;
+}
+
+  /* Qty inputs a touch bigger */
+  #countEntries .qtyInp{ font-size:18px; min-height:48px }
 </style>
 </head>
 <body>
@@ -131,7 +158,7 @@
 /* ========= CONFIG ========= */
 const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbwIEXkytbbXU3grZNR2Q4AR64FaT6NQqIwLp2nKbn92xSrywn0hUpE5wFr9U3xxyzj1/exec';
 const STORAGE_KEY = 'inv_logs_v1';
-const SESSION_KEY = 'inv_session_v1';
+const SESSION_KEY = 'inv_session_v1'; // sessionStorage (auto sign-out on close)
 const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
 
 /* ========= STATE ========= */
@@ -142,7 +169,7 @@ const state = {
   user: null,                   // {username, location (store)}
   currentStore: null,
   currentTemplate: null,
-  currentStorageArea: null,     // Cooler/Dry/Freezer...
+  currentStorageArea: null,
   currentItem: null
 };
 
@@ -178,6 +205,14 @@ function isTodayISO(iso, tzName = tz){
   const fmt = new Intl.DateTimeFormat('en-CA', { timeZone: tzName, year:'numeric', month:'2-digit', day:'2-digit' });
   return fmt.format(d) === today(tzName);
 }
+
+/* Keep focused input visible when keyboard opens on mobile */
+document.addEventListener('focusin', (e) => {
+  const el = e.target;
+  if (el.tagName === 'INPUT' || el.tagName === 'SELECT' || el.tagName === 'TEXTAREA') {
+    setTimeout(() => { el.scrollIntoView({ block: 'center', behavior: 'smooth' }); }, 120);
+  }
+});
 
 /* ========= NORMALIZE TEMPLATE ROW ========= */
 function normalizeRow(r){
@@ -231,7 +266,6 @@ function indexLogs(logRows){
   if(state.template.length > 0) {
     renderTemplates();
     if(state.currentStore && state.currentTemplate){
-      // If already inside, refresh current screen
       if(state.currentStorageArea) openLocation(state.currentStore, state.currentTemplate, state.currentStorageArea);
       else openTemplate(state.currentStore, state.currentTemplate);
     }
@@ -321,7 +355,7 @@ async function loadLogsFromSheets(){
   }
 }
 
-/* ========= RENDER: Templates (store) ========= */
+/* ========= RENDER: Templates ========= */
 function renderTemplates(){
   const store = state.user?.location || '';
   $('#authLoc').textContent = store;
@@ -356,7 +390,7 @@ function renderTemplates(){
   }
 }
 
-/* ========= NEW: Location Summary (within a template) ========= */
+/* ========= Location Summary (within a template) ========= */
 function openTemplate(store, tmpl){
   state.currentStore = store;
   state.currentTemplate = tmpl;
@@ -380,11 +414,19 @@ function openTemplate(store, tmpl){
     byArea.get(area).push(r);
   }
 
-  // Count "today" using logs
-  const todayKey = today();
-  for(const [area, areaRows] of Array.from(byArea.entries()).sort()){
-    const totalItems = areaRows.length;
+  // Optional: custom sort order
+  const order = ['Cooler','Freezer','Dry'];
+  const sortedAreas = Array.from(byArea.keys()).sort((a,b)=>{
+    const ia = order.indexOf(a), ib = order.indexOf(b);
+    if(ia !== -1 && ib !== -1) return ia - ib;
+    if(ia !== -1) return -1;
+    if(ib !== -1) return 1;
+    return String(a).localeCompare(String(b));
+  });
 
+  for(const area of sortedAreas){
+    const areaRows = byArea.get(area);
+    const totalItems = areaRows.length;
     let countedToday = 0;
     for(const r of areaRows){
       const last = state.logsByItemLoc.get(`${r.item_id}@${r.location_id}`);
