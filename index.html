@@ -29,7 +29,7 @@
   .title{font-weight:600}
   .muted{color:var(--muted)}
   .pill{display:inline-block;padding:.2rem .55rem;border:1px solid var(--border);border-radius:999px;color:var(--muted);margin-right:6px}
-  .pill.today{background:var(--accent2);border-color:var(--accent2);color:#001a10;font-weight:600} /* Added for Today's Count */
+  .pill.today{background:var(--accent2);border-color:var(--accent2);color:#001a10;font-weight:600}
   .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
   @media (min-width:520px){.grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
   .empty{padding:26px;text-align:center;color:var(--muted)}
@@ -42,6 +42,25 @@
   .tag{font-variant-numeric:tabular-nums;color:var(--muted)}
 </style>
 </head>
+<!-- Loading Overlay -->
+<div id="loadingOverlay" style="
+  position:fixed;inset:0;background:rgba(0,0,0,0.6);
+  display:none;align-items:center;justify-content:center;z-index:99;
+">
+  <div class="spinner" style="
+    width:70px;height:70px;border:6px solid #999;
+    border-top:6px solid var(--accent);
+    border-radius:50%;animation:spin 1s linear infinite;
+  "></div>
+</div>
+
+<style>
+@keyframes spin {
+  from { transform:rotate(0deg); }
+  to { transform:rotate(360deg); }
+}
+</style>
+
 <body>
   <header>
     <div class="wrap row">
@@ -76,8 +95,7 @@
       <div class="title" id="sheetTitle">Count</div>
       <div class="muted" id="sheetSub" style="margin-bottom:10px"></div>
 
-      <div id="countEntries">
-        </div>
+      <div id="countEntries"></div>
       
       <div class="row" style="margin-top:10px;justify-content:center">
         <button id="addCountBtn" class="btn" style="width:100%">Add Another UoM</button>
@@ -101,7 +119,7 @@ const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
 const state = {
   template: [],              // rows from Google
   byLocation: new Map(),     // location => rows[]
-  logsByItemLoc: new Map(),  // Key format: item_id@location_id => log_row
+  logsByItemLoc: new Map(),  // Key: item_id@location_id => latest log row
   currentLocation: null,     // string
   currentItem: null          // selected row
 };
@@ -118,9 +136,36 @@ function nowISO(){ return new Date().toISOString(); }
 function readLogs(){ try{return JSON.parse(localStorage.getItem(STORAGE_KEY)||'[]')}catch{return[]} }
 function writeLogs(rows){ localStorage.setItem(STORAGE_KEY, JSON.stringify(rows)); }
 
-// REVISED: Index logs by Item ID AND Location ID, prioritizing newest entry via robust sorting
+function showLoading() {
+  const overlay = document.getElementById('loadingOverlay');
+  if (overlay) overlay.style.display = 'flex';
+}
+
+function hideLoading() {
+  const overlay = document.getElementById('loadingOverlay');
+  if (overlay) overlay.style.display = 'none';
+}
+
+// Parse & normalize ISO datetime string (or return null if invalid)
+function normalizeDateTimeStr(s){
+  if(!s) return null;
+  const d = new Date(s);
+  if(!isNaN(d)) return d.toISOString();
+  return null;
+}
+
+// Check if ISO datetime is "today" in given timezone
+function isTodayISO(iso, tzName = tz){
+  if(!iso) return false;
+  const d = new Date(iso);
+  const fmt = new Intl.DateTimeFormat('en-CA', {
+    timeZone: tzName, year:'numeric', month:'2-digit', day:'2-digit'
+  });
+  return fmt.format(d) === today(tzName);
+}
+
+/* ========= Index logs (latest per item/location) ========= */
 function indexLogs(logRows){ 
-  // 1. Group all logs by a unique item/location key
   const logsByKey = new Map();
   for(const r of logRows){
     const key = `${r.item_id}@${r.location_id}`; 
@@ -128,25 +173,21 @@ function indexLogs(logRows){
     logsByKey.get(key).push(r);
   }
   
-  // 2. Clear the old state map and rebuild it with only the newest entry per key
   state.logsByItemLoc = new Map();
   for(const [key, logs] of logsByKey){
-      // Sort logs by count_on (ISO string) descending. ISO strings sort chronologically.
-      // We use .localeCompare for safe string comparison which works for ISO dates.
-      logs.sort((a,b) => String(b.count_on || '').localeCompare(String(a.count_on || '')));
-      
-      // The first element is the newest log for this item/location combination.
-      state.logsByItemLoc.set(key, logs[0]);
+    // Sort by count_on desc (ISO lexicographic works). If missing, treat as very old.
+    logs.sort((a,b) => String(b.count_on || '').localeCompare(String(a.count_on || '')));
+    state.logsByItemLoc.set(key, logs[0]);
   }
 
-  // Re-render only if the template is already loaded.
+  // Re-render if template loaded
   if(state.template.length > 0) {
-      renderLocations();
-      // Only attempt to open the location if one was already open
-      if(state.currentLocation) openLocation(state.currentLocation);
+    renderLocations();
+    if(state.currentLocation) openLocation(state.currentLocation);
   }
 }
 
+/* ========= Normalize template rows ========= */
 function normalizeRow(r){
   const low = Object.fromEntries(Object.entries(r).map(([k,v])=>[String(k).toLowerCase().replace(/\s+/g,'_'), v]));
   const get =( ...names )=>{
@@ -169,6 +210,7 @@ function normalizeRow(r){
 async function loadTemplateFromSheets(){
   const url = `${WEB_APP_URL}?mode=json&nocache=${Date.now()}`;
   setStatus('Loading template…');
+  showLoading(); // <--- add this
   try{
     const res = await fetch(url);
     if(!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -181,53 +223,50 @@ async function loadTemplateFromSheets(){
     renderLocations();
     setStatus(`Loaded ${rows.length} items • ${new Set(rows.map(r=>r.storage_location)).size} locations`);
     
-    // CRITICAL: Load logs after template is successful
-    await loadLogsFromSheets();
-
+    await loadLogsFromSheets(); // also shows spinner internally
   }catch(err){
     console.error(err);
     setStatus('Load failed: '+ err.message);
     alert('Load failed: ' + err.message);
+  }finally{
+    hideLoading(); // <--- always hide after done
   }
 }
 
-// NEW: Fetch Count Logs from Sheets (READ-ONLY)
+/* ========= Load Count Logs from Sheets (READ-ONLY) ========= */
 async function loadLogsFromSheets(){
   const url = `${WEB_APP_URL}?mode=logs&nocache=${Date.now()}`;
   setStatus('Loading count logs from spreadsheet...');
+  showLoading(); // show spinner overlay
   try{
     const res = await fetch(url);
     if(!res.ok) throw new Error(`HTTP ${res.status}`);
     const json = await res.json();
     if(!json.ok || !Array.isArray(json.data)) throw new Error(json.error || 'Bad logs response');
-    
-    // Ensure all required fields are present and correctly typed for remote logs
+
+    // Normalize remote logs
     const remoteLogs = json.data.map(r => ({
-        ...r,
-        // Ensure ISO format for count_on for comparison
-        count_on: r.count_on || nowISO(), 
-        // Ensure date field is present for 'today' check
-        business_date: String(r.business_date || today()).substring(0, 10), // Ensures YYYY-MM-DD format
-        // Ensure quantities are parsed as numbers for correct display
-        quantity_1: parseFloat(r.quantity_1 || 0),
-        quantity_2: parseFloat(r.quantity_2 || 0),
-        quantity_3: parseFloat(r.quantity_3 || 0),
+      ...r,
+      count_on: normalizeDateTimeStr(r.count_on),
+      quantity_1: parseFloat(r.quantity_1 ?? 0),
+      quantity_2: parseFloat(r.quantity_2 ?? 0),
+      quantity_3: parseFloat(r.quantity_3 ?? 0),
     }));
 
-    // CRITICAL FIX: Combine local logs (which might have unsynced data) with new remote logs.
+    // ✅ merge local + remote + reindex
     const localLogs = readLogs(); 
     const allLogsToMerge = localLogs.concat(remoteLogs);
-
-    // Index the complete set to get the single latest count per item/location
     indexLogs(allLogsToMerge); 
     setStatus(`Logs loaded. ${remoteLogs.length} remote logs merged with local cache.`);
 
   }catch(err){
     console.error('Remote log loading failed:', err);
     setStatus('Template loaded. Warning: Failed to load remote logs.'); 
-    // Do not alert, allow app to continue if log loading fails
+  }finally{
+    hideLoading(); // ✅ always hide overlay at the end
   }
 }
+
 
 function indexByLocation(){
   state.byLocation = new Map();
@@ -248,22 +287,18 @@ function renderLocations(){
   const wrap = $('#locList'); wrap.innerHTML='';
   if(state.byLocation.size===0){ wrap.innerHTML = `<div class="empty">No locations</div>`; return; }
   
-  const todayKey = today();
   const todayCountedByLoc = new Map();
-  
-  // Iterate over all the latest logs (local + remote)
+
+  // Count unique items with a log that happened "today" (by count_on)
   for(const [key, log] of state.logsByItemLoc){ 
-    const loc = log.storage_location || 'Unknown';
-    // CRITICAL: Check if the log's business_date matches today
-    if(log.business_date === todayKey){ 
-        if(!todayCountedByLoc.has(loc)) todayCountedByLoc.set(loc, new Set());
-        // Use item_id for counting unique items
-        todayCountedByLoc.get(loc).add(log.item_id); 
+    if(isTodayISO(log?.count_on)){ 
+      const loc = log.storage_location || 'Unknown';
+      if(!todayCountedByLoc.has(loc)) todayCountedByLoc.set(loc, new Set());
+      todayCountedByLoc.get(loc).add(log.item_id);
     }
   }
 
   for(const [loc, rows] of state.byLocation){
-    // Get the number of unique items counted today in this location
     const itemsCounted = todayCountedByLoc.get(loc)?.size || 0;
     const btn = document.createElement('button');
     btn.className='btn';
@@ -287,40 +322,33 @@ function openLocation(loc){
   for(const r of rows){
     const li = document.createElement('div');
     li.className='item';
-    
-    // Use item_id@location_id key for specific lookup
     const lastCount = state.logsByItemLoc.get(`${r.item_id}@${r.location_id}`);
     let lastCountHtml = '';
     
-    if(lastCount){
-      // Display the first quantity/UoM entry as the primary indicator
+    if(lastCount && lastCount.count_on){
       const primaryQty = lastCount['quantity_1']; 
       const primaryUofm = lastCount['count_uofm_1']; 
-      
-      // Changed from (primaryQty > 0) to check if a quantity was recorded (0 is a recorded quantity)
-      // Check if primaryQty is a non-negative number and primaryUofm exists
-      if (primaryQty >= 0 && primaryUofm) { 
-        // CRITICAL: Check the business_date field in the log entry
-        const isToday = lastCount.business_date === today(); 
-        const countDate = new Date(lastCount.count_on).toLocaleDateString();
-        const countTime = new Date(lastCount.count_on).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-        const pillClass = isToday ? 'today' : '';
-        // REVISED: If it's today, show "Today [Time]". Otherwise, show "[Date] [Time]".
-        const dateDisplay = isToday 
-          ? `Today ${countTime}` 
-          : `${countDate} ${countTime}`;
-        
-        // Last count info display (quantity, uofm, date)
+      const isToday = isTodayISO(lastCount.count_on);
+      const dt = new Date(lastCount.count_on);
+      const dateDisplay = dt.toLocaleDateString();
+      const timeDisplay = dt.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+      const dateText = isToday ? `Today ${timeDisplay}` : `${dateDisplay} ${timeDisplay}`;
+
+      if (primaryUofm && !Number.isNaN(primaryQty) && primaryQty >= 0){
         lastCountHtml = `<div class="row" style="gap:8px;margin-top:6px;font-size:0.9em;font-weight:400">
-          <span class="pill ${pillClass}">${primaryQty} ${primaryUofm}</span>
-          <span class="muted">${dateDisplay}</span>
+          <span class="pill ${isToday ? 'today' : ''}">${primaryQty} ${primaryUofm}</span>
+          <span class="muted">${dateText}</span>
         </div>`;
+      } else {
+        lastCountHtml = `<div class="muted" style="margin-top:6px">${dateText}</div>`;
       }
+    } else {
+      lastCountHtml = `<div class="muted" style="margin-top:6px">No previous count</div>`;
     }
       
     li.innerHTML = `<div class="title">${r.item}</div>
       <div class="muted">${r.storage_location} • ID ${r.item_id}</div> 
-      ${lastCountHtml}`; // Inject last count
+      ${lastCountHtml}`;
       
     li.addEventListener('click', ()=> openSheet(r));
     list.appendChild(li);
@@ -328,17 +356,11 @@ function openLocation(loc){
 }
 
 /* ========= Bottom sheet (Multi-Count) ========= */
-// REVISED: Forces 'Select UoM' placeholder as the default/selected option.
 function getUofmOptionsHtml(row){
   const units = [row.uof_m,row.uof_m_2,row.uof_m_3].filter(Boolean);
   if(units.length === 0) units.push('EA'); // Default if none defined
-  
-  // Add placeholder option: value="" is important for validation
   let optionsHtml = '<option value="" disabled selected>Select UoM</option>';
-
-  // Append actual options
   optionsHtml += units.map(u => `<option value="${u}">${u}</option>`).join('');
-  
   return optionsHtml;
 }
 
@@ -348,7 +370,6 @@ function createCountRow(row, container){
   wrapper.className = 'row count-row'
   wrapper.style.marginBottom = '10px';
   
-  // Quantity input
   const qtyInput = document.createElement('input');
   qtyInput.type = 'number';
   qtyInput.min = '0';
@@ -356,15 +377,13 @@ function createCountRow(row, container){
   qtyInput.placeholder = '0';
   qtyInput.className = 'qtyInp';
   qtyInput.style.flex = '3';
-  qtyInput.value = ''; // Ensure quantity starts empty (no default 0)
+  qtyInput.value = '';
 
-  // UoM select
   const uofmSelect = document.createElement('select');
   uofmSelect.className = 'uofmSel';
   uofmSelect.style.flex = '2';
   uofmSelect.innerHTML = optionsHtml;
   
-  // Remove button
   const removeBtn = document.createElement('button');
   removeBtn.className = 'btn danger';
   removeBtn.style.padding = '10px 10px';
@@ -374,8 +393,8 @@ function createCountRow(row, container){
     if(container.querySelectorAll('.count-row').length > 1){
       container.removeChild(wrapper);
     } else {
-      qtyInput.value = ''; // Just clear the quantity
-      uofmSelect.value = ''; // Reset UoM to the empty placeholder value
+      qtyInput.value = '';
+      uofmSelect.value = '';
     }
   };
 
@@ -391,30 +410,14 @@ function openSheet(row){
   $('#sheetSub').textContent = `${row.storage_location} • ${row.template_id} • ID ${row.item_id}`;
   
   const entriesContainer = $('#countEntries');
-  entriesContainer.innerHTML = ''; // Clear previous entries
-  
-  createCountRow(row, entriesContainer); // Start with one row
-  
+  entriesContainer.innerHTML = '';
+  createCountRow(row, entriesContainer);
   $('#sheet').style.display='flex';
 }
 
 function closeSheet(){ $('#sheet').style.display='none'; }
 
-
-// Add button handler
-document.addEventListener('DOMContentLoaded', () => {
-  // ... other event listeners ...
-  const addCountBtn = $('#addCountBtn');
-  if (addCountBtn) {
-    addCountBtn.addEventListener('click', () => {
-        if(state.currentItem) {
-            createCountRow(state.currentItem, $('#countEntries'));
-        }
-    });
-  }
-});
-
-// optional: send ONE row to Google (Apps Script doPost)
+/* ========= Sync single row to Google ========= */
 async function syncSingleRowToGoogle(row){
   try{
     const res = await fetch(WEB_APP_URL, {
@@ -437,78 +440,53 @@ async function saveCount(){
   const entriesContainer = $('#countEntries');
   const countRows = entriesContainer.querySelectorAll('.count-row');
   const allLogs = readLogs();
-  const todayKey = today();
   
-  // 1. Gather all count data from the UI and perform validation
   const countData = [];
   for(const rowEl of countRows){
-    // Use parseFloat to get the quantity as a number (NaN if empty or non-numeric)
     const qty = parseFloat(rowEl.querySelector('.qtyInp').value); 
-    // The value will be an empty string if the 'Select UoM' placeholder is chosen
     const uofm = rowEl.querySelector('.uofmSel').value; 
-    
-    // MODIFIED: Only capture valid counts if UoM is selected AND Quantity is a valid number (0 or greater).
-    // The input has min="0", so we just need to ensure it's not NaN (i.e., not empty).
     if(uofm !== '' && !isNaN(qty)) { 
         countData.push({ quantity: qty, uofm: uofm });
     }
   }
-
-  // --- VALIDATION CHECK ---
   if(countData.length === 0) {
       alert('Error: You must enter a quantity (0 or greater) AND select a Unit of Measure (UoM) for at least one entry before saving.');
-      return; // Stop the save process
+      return;
   }
   
-  // 2. Build the single consolidated log row (up to 3 UoM/Qty pairs)
-  // *** USING UNDERSCORE KEYS (snake_case) to match Apps Script ***
   const consolidatedLog = {
-    business_date: todayKey,
-    count_on: nowISO(), // ISO string is correct
+    count_on: nowISO(),
     storage_location: r.storage_location,
     location_id: r.location_id,
     template_id: r.template_id,
     item_id: r.item_id,
     item: r.item,
     'count_uofm_1': countData[0]?.uofm || '',
-    'quantity_1': countData[0]?.quantity || 0,
+    'quantity_1': countData[0]?.quantity ?? null,
     'count_uofm_2': countData[1]?.uofm || '',
-    'quantity_2': countData[1]?.quantity || 0,
+    'quantity_2': countData[1]?.quantity ?? null,
     'count_uofm_3': countData[2]?.uofm || '',
-    'quantity_3': countData[2]?.quantity || 0,
+    'quantity_3': countData[2]?.quantity ?? null,
     counted_by: '' // optional
   };
   
-  // 3. Update Local Storage 
   const logKey = `${r.item_id}@${r.location_id}`;
-  const idx = allLogs.findIndex(x => 
-      `${x.item_id}@${x.location_id}` === logKey && x.business_date === todayKey
-  );
-  
+  const idx = allLogs.findIndex(x => `${x.item_id}@${x.location_id}` === logKey);
   if(idx>=0) allLogs[idx] = consolidatedLog; 
   else allLogs.push(consolidatedLog);
-  
   writeLogs(allLogs);
   
-  // CRITICAL FIX: Index the full, updated local array. This ensures today's count is immediately visible.
   indexLogs(allLogs); 
   closeSheet();
   
-  // 4. AUTO-SYNC the new consolidated row immediately
   setStatus(`Saved count • Syncing...`);
   const success = await syncSingleRowToGoogle(consolidatedLog);
-  
-  // 5. Update Status Message based on sync result
-  if(success){
-    setStatus(`Saved & Synced • ${r.item} (${countData.length} entries)`);
-  } else {
-    // Advise user to use the Refresh button to pull data from the sheet if sync failed
-    setStatus(`Saved (Local Only) • ${r.item} (${countData.length} entries). Press Refresh to pull the latest sheet data.`);
-  }
+  setStatus(success
+    ? `Saved & Synced • ${r.item} (${countData.length} entries)`
+    : `Saved (Local Only) • ${r.item} (${countData.length} entries). Press Refresh to pull the latest sheet data.`);
 }
 
-
-/* ========= Export / Clear / Refresh Logs (READ-ONLY) ========= */
+/* ========= Export / Clear / Refresh Logs ========= */
 function toCSV(rows){
   if(!rows.length) return '';
   const headers = Object.keys(rows[0]);
@@ -535,31 +513,30 @@ function clearLogs(){
   setStatus('Logs cleared');
   renderLocations(); 
 }
-
-// Function wired to the "Refresh" button (id=syncBtn) to READ logs
 async function refreshLogsFromSheet(){
   setStatus('Manually refreshing logs from Google Sheet...');
-  
-  // Calls loadLogsFromSheets which performs the fetch, merge, and UI update (READ only)
   await loadLogsFromSheets();
 }
 
-
 /* ========= Wire up ========= */
 document.addEventListener('DOMContentLoaded', () => {
-  // buttons
   $('#backBtn').addEventListener('click', ()=> renderLocations());
   $('#cancelBtn').addEventListener('click', closeSheet);
   $('#saveBtn').addEventListener('click', saveCount);
   $('#exportBtn').addEventListener('click', exportLogs);
   $('#clearBtn').addEventListener('click', clearLogs);
-  
-  // Wire the "Refresh" button (id=syncBtn) to the log-reading function
   $('#syncBtn').addEventListener('click', refreshLogsFromSheet);
 
-  // AUTO-LOAD the Google Sheet template on page load
-  indexLogs(readLogs()); // 1. Load local logs first
-  loadTemplateFromSheets(); // 2. Load template, then load remote logs (ONLY ONCE)
+  const addCountBtn = $('#addCountBtn');
+  if (addCountBtn) {
+    addCountBtn.addEventListener('click', () => {
+        if(state.currentItem) createCountRow(state.currentItem, $('#countEntries'));
+    });
+  }
+
+  // Init: load local logs first (for instant UI), then template + remote logs
+  indexLogs(readLogs());
+  loadTemplateFromSheets();
 });
 </script>
 </body>
