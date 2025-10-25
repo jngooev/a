@@ -7,6 +7,10 @@
   content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1"
 />
 <title>Inventory Count (Mobile)</title>
+
+<link rel="preconnect" href="https://script.google.com">
+<link rel="preconnect" href="https://script.googleusercontent.com">
+
 <style>
   :root{
     --bg:#0b0e10; --card:#141923; --text:#f3f7fb; --muted:#8fa6bf;
@@ -41,11 +45,15 @@
   .backdrop{position:fixed;inset:0;background:#0009;display:none;align-items:flex-end;justify-content:center;z-index:5}
   .sheet{background:var(--card);border:1px solid var(--border);border-bottom:none;border-radius:16px 16px 0 0;width:100%;max-width:720px;padding:16px}
   label{display:block;margin:10px 0 6px}
+
+  /* iOS-friendly input sizing to prevent zoom */
   input,select,textarea,button{font-size:16px;line-height:1.35}
   input,select{
     width:100%;background:#0f1520;border:1px solid var(--border);color:var(--text);
     padding:12px 14px;border-radius:12px;min-height:46px
   }
+  #countEntries .qtyInp{ font-size:18px; min-height:48px }
+
   .row-end{display:flex;gap:10px;justify-content:flex-end;margin-top:14px}
 
   /* Login */
@@ -59,24 +67,20 @@
   .spinner{width:70px;height:70px;border:6px solid #999;border-top:6px solid var(--accent);border-radius:50%;animation:spin 1s linear infinite}
   @keyframes spin {from{transform:rotate(0)} to{transform:rotate(360deg)}}
 
-  /* Mobile niceties */
   body{ touch-action: manipulation; }
+
   /* Number inputs: keep numeric keypad but remove tiny spinners */
   input[type="number"]{
-  appearance: textfield;            /* ← standard */
-  -moz-appearance: textfield;       /* Firefox */
-  -webkit-appearance: none;         /* Safari/iOS old versions */
-}
-
-input[type="number"]::-webkit-outer-spin-button,
-input[type="number"]::-webkit-inner-spin-button{
-  appearance: none;                  /* ← standard */
-  -webkit-appearance: none;          /* WebKit */
-  margin: 0;
-}
-
-  /* Qty inputs a touch bigger */
-  #countEntries .qtyInp{ font-size:18px; min-height:48px }
+    appearance: textfield;
+    -moz-appearance: textfield;
+    -webkit-appearance: none;
+  }
+  input[type="number"]::-webkit-outer-spin-button,
+  input[type="number"]::-webkit-inner-spin-button{
+    appearance: none;
+    -webkit-appearance: none;
+    margin: 0;
+  }
 </style>
 </head>
 <body>
@@ -95,9 +99,9 @@ input[type="number"]::-webkit-inner-spin-button{
   <main class="wrap section">
     <div id="status" class="muted" style="margin:6px 4px 10px"></div>
 
-    <!-- 1) Template list (per store) -->
+    <!-- 1) Templates across allowed stores -->
     <div class="card section" id="tmplCard" style="display:none">
-      <div class="title" style="margin-bottom:8px">Templates for <span id="authLoc"></span></div>
+      <div class="title" style="margin-bottom:8px">Templates • <span id="authLoc"></span></div>
       <div id="tmplList" class="grid"></div>
     </div>
 
@@ -158,16 +162,17 @@ input[type="number"]::-webkit-inner-spin-button{
 /* ========= CONFIG ========= */
 const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbwIEXkytbbXU3grZNR2Q4AR64FaT6NQqIwLp2nKbn92xSrywn0hUpE5wFr9U3xxyzj1/exec';
 const STORAGE_KEY = 'inv_logs_v1';
-const SESSION_KEY = 'inv_session_v1'; // sessionStorage (auto sign-out on close)
+const SESSION_KEY = 'inv_session_v1'; // { username, locations[] }
 const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
 
 /* ========= STATE ========= */
 const state = {
-  template: [],                 // rows filtered by store
+  template: [],                 // normalized template rows (filtered by allowed stores)
   byStoreTmpl: new Map(),       // key: store|template => rows[]
-  logsByItemLoc: new Map(),     // key: item_id@location_id => latest log
-  user: null,                   // {username, location (store)}
-  currentStore: null,
+  logsByCountId: new Map(),     // key: count_id => latest log
+  user: null,                   // { username, locations:[] }
+
+  currentStore: null,           // store for current detail view
   currentTemplate: null,
   currentStorageArea: null,
   currentItem: null
@@ -186,7 +191,7 @@ function writeLogs(rows){ localStorage.setItem(STORAGE_KEY, JSON.stringify(rows)
 function saveSession(obj){ sessionStorage.setItem(SESSION_KEY, JSON.stringify(obj)); }
 function readSession(){ try{return JSON.parse(sessionStorage.getItem(SESSION_KEY)||'null')}catch{return null} }
 function clearSession(){ sessionStorage.removeItem(SESSION_KEY); }
-window.addEventListener('beforeunload', ()=>{ try{ sessionStorage.removeItem(SESSION_KEY);}catch(e){} });
+window.addEventListener('beforeunload', ()=>{ try{ clearSession(); }catch(e){} });
 
 function showLoading(){ const o = $('#loadingOverlay'); if(o) o.style.display='flex'; }
 function hideLoading(){ const o = $('#loadingOverlay'); if(o) o.style.display='none'; }
@@ -222,12 +227,13 @@ function normalizeRow(r){
     return '';
   };
   return {
-    store_location:   get('location','store','store_location'),      // store (e.g., Bolsa)
-    storage_location: get('storage_location','storagearea','area'),  // Cooler/Dry/Freezer
+    store_location:   get('location','store','store_location'),
+    storage_location: get('storage_location','storagearea','area'),
     template_name:    get('template_name','template','template__name'),
-    location_id:      get('location_id','locationid'),
     template_id:      get('template_id','templateid'),
+    location_id:      get('location_id','locationid'),
     item_id:          get('item_id','id','itemid'),
+    count_id:         get('count_id','countid'),   // <-- required
     item:             get('item','item_name','name'),
     uof_m:            get('uof_m','uom','unit'),
     uof_m_2:          get('uof_m_2','uom_2','unit_2'),
@@ -246,51 +252,27 @@ function indexByStoreTemplate(rows){
     state.byStoreTmpl.get(key).push(r);
   }
   for (const arr of state.byStoreTmpl.values()){
-    arr.sort((a,b)=> String(a.item).localeCompare(b.item));
+    arr.sort((a,b)=> String(a.item).localeCompare(String(b.item)));
   }
 }
 
-/* ========= LOGS INDEX ========= */
+/* ========= LOGS INDEX (by count_id) ========= */
 function indexLogs(logRows){ 
-  const logsByKey = new Map();
-  for(const r of logRows){
-    const key = `${r.item_id}@${r.location_id}`;
-    if(!logsByKey.has(key)) logsByKey.set(key, []);
-    logsByKey.get(key).push(r);
+  const byKey = new Map();
+  for (const r of logRows){
+    const key = String(r.count_id || '').trim();
+    if(!key) continue;
+    if(!byKey.has(key)) byKey.set(key, []);
+    byKey.get(key).push(r);
   }
-  state.logsByItemLoc = new Map();
-  for(const [key, logs] of logsByKey){
+  state.logsByCountId = new Map();
+  for (const [key, logs] of byKey){
     logs.sort((a,b)=> String(b.count_on || '').localeCompare(String(a.count_on || '')));
-    state.logsByItemLoc.set(key, logs[0]);
-  }
-  if(state.template.length > 0) {
-    renderTemplates();
-    if(state.currentStore && state.currentTemplate){
-      if(state.currentStorageArea) openLocation(state.currentStore, state.currentTemplate, state.currentStorageArea);
-      else openTemplate(state.currentStore, state.currentTemplate);
-    }
+    state.logsByCountId.set(key, logs[0]);
   }
 }
 
-/* ========= FETCH CREDS / TEMPLATE / LOGS ========= */
-async function loadCredentials(){
-  setStatus('Loading credentials…');
-  showLoading();
-  try{
-    const res = await fetch(`${WEB_APP_URL}?mode=creds&nocache=${Date.now()}`);
-    if(!res.ok) throw new Error(`HTTP ${res.status}`);
-    const json = await res.json();
-    if(!json.ok || !Array.isArray(json.data)) throw new Error(json.error || 'Bad credentials response');
-    return json.data; // [{username,password,location}]
-  }catch(err){
-    console.error(err);
-    alert('Failed to load credentials: ' + err.message);
-    return [];
-  }finally{
-    hideLoading();
-  }
-}
-
+/* ========= FETCH TEMPLATE / LOGS ========= */
 async function loadTemplateFromSheets(){
   setStatus('Loading template…');
   showLoading();
@@ -300,21 +282,24 @@ async function loadTemplateFromSheets(){
     const json = await res.json();
     if(!json.ok || !Array.isArray(json.data)) throw new Error(json.error || 'Bad template response');
 
-    const rowsAll = json.data.map(normalizeRow).filter(r=>r.template_id);
-    const userStore = (state.user?.location || '').trim().toLowerCase();
-    const rows = state.user
-      ? rowsAll.filter(r => (r.store_location || '').trim().toLowerCase() === userStore)
-      : [];
+    const rowsAll = json.data.map(normalizeRow).filter(r=>r.template_id && r.count_id);
 
-    if (rows.length === 0){
-      const allStores = Array.from(new Set(rowsAll.map(r => (r.store_location||'').trim()))).filter(Boolean).sort();
-      setStatus(`No templates for "${state.user?.location}". Available stores: ${allStores.join(', ')}`);
+    // Build allowed store set
+    let allowedStores;
+    if (state.user?.locations?.includes('ALL')) {
+      allowedStores = new Set(rowsAll.map(r => (r.store_location||'').trim()).filter(Boolean));
+    } else {
+      allowedStores = new Set((state.user?.locations || []).map(s => s.trim()).filter(Boolean));
     }
+
+    // Filter by allowed stores
+    const rows = rowsAll.filter(r => allowedStores.has((r.store_location||'').trim()));
 
     state.template = rows;
     indexByStoreTemplate(rows);
     renderTemplates();
-    setStatus(`Loaded ${rows.length} items for ${state.user?.location||''}`);
+    const storeCount = new Set(rows.map(r => r.store_location)).size;
+    setStatus(`Loaded ${rows.length} items across ${storeCount} location(s)`);
 
     await loadLogsFromSheets();
   }catch(err){
@@ -338,14 +323,23 @@ async function loadLogsFromSheets(){
     const remoteLogs = json.data.map(r => ({
       ...r,
       count_on: normalizeDateTimeStr(r.count_on),
-      quantity_1: parseFloat(r.quantity_1 ?? 0),
-      quantity_2: parseFloat(r.quantity_2 ?? 0),
-      quantity_3: parseFloat(r.quantity_3 ?? 0),
+      // keep count_id as-is
+      quantity_1: r.quantity_1 === '' || r.quantity_1 == null ? null : parseFloat(r.quantity_1),
+      quantity_2: r.quantity_2 === '' || r.quantity_2 == null ? null : parseFloat(r.quantity_2),
+      quantity_3: r.quantity_3 === '' || r.quantity_3 == null ? null : parseFloat(r.quantity_3),
     }));
 
     const localLogs = readLogs();
     const allLogsToMerge = localLogs.concat(remoteLogs);
     indexLogs(allLogsToMerge);
+    // Refresh current view without jumping back to templates
+    if (state.currentStorageArea) {
+      openLocation(state.currentStore, state.currentTemplate, state.currentStorageArea);
+    } else if (state.currentTemplate) {
+      openTemplate(state.currentStore, state.currentTemplate);
+    } else {
+      renderTemplates();
+    }
     setStatus(`Logs loaded. ${remoteLogs.length} remote logs merged with local cache.`);
   }catch(err){
     console.error(err);
@@ -355,10 +349,8 @@ async function loadLogsFromSheets(){
   }
 }
 
-/* ========= RENDER: Templates ========= */
+/* ========= RENDER: Templates (combined across stores) ========= */
 function renderTemplates(){
-  const store = state.user?.location || '';
-  $('#authLoc').textContent = store;
   const tmplCard = $('#tmplCard');
   const locCard = $('#locCard');
   const itemsCard = $('#itemsCard');
@@ -367,25 +359,41 @@ function renderTemplates(){
   locCard.style.display = 'none';
   itemsCard.style.display = 'none';
 
-  const tmplSet = new Set();
-  for(const [key] of state.byStoreTmpl){
-    const [kStore, kTmpl] = key.split('|');
-    if(kStore.trim().toLowerCase() === store.trim().toLowerCase()) tmplSet.add(kTmpl);
-  }
+  const stores = new Set();
+  for (const [key] of state.byStoreTmpl) stores.add(key.split('|')[0]);
+  const storeArr = Array.from(stores).sort();
+  $('#authLoc').textContent =
+    storeArr.length === 1 ? storeArr[0] : `${storeArr.length} locations`;
 
-  if(tmplSet.size === 0){
-    list.innerHTML = `<div class="empty">No templates found for ${store}</div>`;
+  if (state.byStoreTmpl.size === 0){
+    list.innerHTML = `<div class="empty">No templates found</div>`;
     return;
   }
 
-  for(const tmpl of Array.from(tmplSet).sort()){
-    const rows = state.byStoreTmpl.get(`${store}|${tmpl}`) || [];
+  const pairs = [];
+  for(const [key, rows] of state.byStoreTmpl){
+    const [store, tmpl] = key.split('|');
+    pairs.push({ store, tmpl, count: rows.length });
+  }
+  pairs.sort((a,b)=>{
+    const s = String(a.store).localeCompare(String(b.store));
+    if (s !== 0) return s;
+    return String(a.tmpl).localeCompare(String(b.tmpl));
+  });
+
+  for(const p of pairs){
     const btn = document.createElement('button');
     btn.className = 'btn';
     btn.style.width='100%';
     btn.innerHTML = `<div class="row" style="justify-content:space-between">
-      <span>${tmpl}</span><span class="tag">${rows.length} items</span></div>`;
-    btn.addEventListener('click', ()=> openTemplate(store, tmpl));
+      <span>${p.tmpl}</span><span class="tag">${p.store} • ${p.count} items</span></div>`;
+    btn.dataset.store = p.store;
+    btn.dataset.tmpl = p.tmpl;
+    btn.addEventListener('click', (ev)=>{
+      const s = ev.currentTarget.dataset.store;
+      const t = ev.currentTarget.dataset.tmpl;
+      openTemplate(s, t);
+    });
     list.appendChild(btn);
   }
 }
@@ -406,15 +414,13 @@ function openTemplate(store, tmpl){
   const rows = state.byStoreTmpl.get(`${store}|${tmpl}`) || [];
   if(!rows.length){ container.innerHTML = `<div class="empty">No locations for this template</div>`; return; }
 
-  // Group by storage_location
-  const byArea = new Map(); // area -> rows[]
+  const byArea = new Map();
   for(const r of rows){
     const area = r.storage_location || 'Other';
     if(!byArea.has(area)) byArea.set(area, []);
     byArea.get(area).push(r);
   }
 
-  // Optional: custom sort order
   const order = ['Cooler','Freezer','Dry'];
   const sortedAreas = Array.from(byArea.keys()).sort((a,b)=>{
     const ia = order.indexOf(a), ib = order.indexOf(b);
@@ -429,7 +435,7 @@ function openTemplate(store, tmpl){
     const totalItems = areaRows.length;
     let countedToday = 0;
     for(const r of areaRows){
-      const last = state.logsByItemLoc.get(`${r.item_id}@${r.location_id}`);
+      const last = state.logsByCountId.get(String(r.count_id || '').trim());
       if(last && isTodayISO(last.count_on)) countedToday++;
     }
 
@@ -465,21 +471,21 @@ function openLocation(store, tmpl, area){
   for(const r of rows){
     const li = document.createElement('div');
     li.className='item';
-    const lastCount = state.logsByItemLoc.get(`${r.item_id}@${r.location_id}`);
+    const lastCount = state.logsByCountId.get(String(r.count_id || '').trim());
     let lastCountHtml = '';
 
     if(lastCount && lastCount.count_on){
       const primaryQty = lastCount['quantity_1']; 
       const primaryUofm = lastCount['count_uofm_1']; 
-      const isToday = isTodayISO(lastCount.count_on);
+      const todayFlag = isTodayISO(lastCount.count_on);
       const dt = new Date(lastCount.count_on);
       const dateDisplay = dt.toLocaleDateString();
       const timeDisplay = dt.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
-      const dateText = isToday ? `Today ${timeDisplay}` : `${dateDisplay} ${timeDisplay}`;
+      const dateText = todayFlag ? `Today ${timeDisplay}` : `${dateDisplay} ${timeDisplay}`;
 
-      if (primaryUofm && !Number.isNaN(primaryQty) && primaryQty >= 0){
+      if (primaryUofm && (primaryQty === 0 || (typeof primaryQty === 'number' && !Number.isNaN(primaryQty)))){
         lastCountHtml = `<div class="row" style="gap:8px;margin-top:6px;font-size:0.9em;font-weight:400">
-          <span class="pill ${isToday ? 'today' : ''}">${primaryQty} ${primaryUofm}</span>
+          <span class="pill ${todayFlag ? 'today' : ''}">${primaryQty ?? 0} ${primaryUofm}</span>
           <span class="muted">${dateText}</span>
         </div>`;
       } else {
@@ -567,35 +573,40 @@ async function saveCount(){
   
   const countData = [];
   for(const rowEl of countRows){
-    const qty = parseFloat(rowEl.querySelector('.qtyInp').value); 
+    const val = rowEl.querySelector('.qtyInp').value;
+    const qty = val === '' ? NaN : parseFloat(val);
     const uofm = rowEl.querySelector('.uofmSel').value; 
     if(uofm !== '' && !isNaN(qty)) countData.push({ quantity: qty, uofm: uofm });
   }
   if(countData.length === 0) { alert('Enter quantity & select UoM for at least one entry.'); return; }
   
   const consolidatedLog = {
+    // Order matters only for Apps Script column mapping; it uses header names.
+    count_id: r.count_id,
     count_on: nowISO(),
     storage_location: r.storage_location,
     location_id: r.location_id,
     template_id: r.template_id,
     item_id: r.item_id,
     item: r.item,
-    'count_uofm_1': countData[0]?.uofm || '',
-    'quantity_1': countData[0]?.quantity ?? null,
-    'count_uofm_2': countData[1]?.uofm || '',
-    'quantity_2': countData[1]?.quantity ?? null,
-    'count_uofm_3': countData[2]?.uofm || '',
-    'quantity_3': countData[2]?.quantity ?? null,
-    counted_by: state.user?.username || ''
+    count_uofm_1: countData[0]?.uofm || '',
+    quantity_1: countData[0]?.quantity ?? null,
+    count_uofm_2: countData[1]?.uofm || '',
+    quantity_2: countData[1]?.quantity ?? null,
+    count_uofm_3: countData[2]?.uofm || '',
+    quantity_3: countData[2]?.quantity ?? null
   };
   
-  const logKey = `${r.item_id}@${r.location_id}`;
-  const idx = allLogs.findIndex(x => `${x.item_id}@${x.location_id}` === logKey);
+  // Upsert local cache by count_id
+  const logKey = String(r.count_id || '').trim();
+  const idx = allLogs.findIndex(x => String(x.count_id || '').trim() === logKey);
   if(idx>=0) allLogs[idx] = consolidatedLog; else allLogs.push(consolidatedLog);
   writeLogs(allLogs);
   
   indexLogs(allLogs); 
   closeSheet();
+  // Stay on the same location page and refresh its items
+  openLocation(state.currentStore, state.currentTemplate, state.currentStorageArea);
   
   setStatus(`Saved count • Syncing...`);
   const success = await syncSingleRowToGoogle(consolidatedLog);
@@ -640,18 +651,33 @@ async function handleLogin(){
   const err = $('#loginErr'); err.textContent = '';
   if(!u || !p){ err.textContent = 'Enter username and password.'; return; }
 
-  const creds = await loadCredentials();
-  const found = creds.find(c => String(c.username||'').trim().toLowerCase() === u.toLowerCase()
-                             && String(c.password||'') === p);
-  if(!found){ err.textContent = 'Invalid username or password.'; return; }
+  setStatus('Signing in…');
+  showLoading();
+  try{
+    const url = `${WEB_APP_URL}?mode=auth&u=${encodeURIComponent(u)}&p=${encodeURIComponent(p)}&nocache=${Date.now()}`;
+    const res = await fetch(url, { method:'GET' });
+    if(!res.ok) throw new Error(`HTTP ${res.status}`);
+    const json = await res.json();
 
-  state.user = { username: u, location: String(found.location||'').trim() };
-  saveSession(state.user);
-  hideLogin();
-  setStatus(`Signed in as ${state.user.username} • ${state.user.location}`);
+    if(!json.ok){
+      err.textContent = json.error || 'Invalid username or password.';
+      return;
+    }
 
-  indexLogs(readLogs());
-  await loadTemplateFromSheets();
+    const locations = Array.isArray(json.user.locations) ? json.user.locations : [];
+    state.user = { username: u, locations };
+    saveSession(state.user);
+    hideLogin();
+    indexLogs(readLogs());
+
+    setStatus(`Signed in as ${state.user.username}${locations.includes('ALL') ? ' • admin' : ''}`);
+    await loadTemplateFromSheets(); // renders all allowed templates (no picker)
+  }catch(e){
+    console.error(e);
+    err.textContent = 'Sign-in failed. Try again.';
+  }finally{
+    hideLoading();
+  }
 }
 
 function signOut(){
@@ -659,6 +685,7 @@ function signOut(){
   state.user = null;
   state.template = [];
   state.byStoreTmpl = new Map();
+  state.logsByCountId = new Map();
   state.currentStore = null;
   state.currentTemplate = null;
   state.currentStorageArea = null;
@@ -684,11 +711,11 @@ document.addEventListener('DOMContentLoaded', () => {
   $('#loginPass').addEventListener('keydown', (e)=>{ if(e.key==='Enter') handleLogin(); });
 
   const sess = readSession();
-  if(sess && sess.username && sess.location){
+  if(sess && sess.username && Array.isArray(sess.locations)){
     state.user = sess;
     hideLogin();
-    setStatus(`Signed in as ${state.user.username} • ${state.user.location}`);
     indexLogs(readLogs());
+    setStatus(`Signed in as ${state.user.username}${state.user.locations.includes('ALL') ? ' • admin' : ''}`);
     loadTemplateFromSheets();
   } else {
     showLogin();
