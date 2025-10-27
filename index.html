@@ -1,89 +1,114 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta
-  name="viewport"
-  content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1"
-/>
-<title>Inventory Count (Mobile)</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
+  <title>Inventory Count (Mobile)</title>
 
-<link rel="preconnect" href="https://script.google.com">
-<link rel="preconnect" href="https://script.googleusercontent.com">
+  <!-- Preconnects for faster Apps Script calls -->
+  <link rel="preconnect" href="https://script.google.com">
+  <link rel="preconnect" href="https://script.googleusercontent.com">
 
-<style>
-  :root{
-    --bg:#0b0e10; --card:#141923; --text:#f3f7fb; --muted:#8fa6bf;
-    --border:#27364d; --accent:#42a5ff; --accent2:#22cc88; --warn:#ffb020; --danger:#ff5d5d;
-    --radius:14px; --pad:14px;
-  }
-  *{box-sizing:border-box}
-  html{ -webkit-text-size-adjust:100% }
-  body{margin:0;background:var(--bg);color:var(--text);font:16px/1.35 system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial}
-  header{position:sticky;top:0;z-index:2;background:linear-gradient(#0b0e10,#0b0e1090);backdrop-filter:saturate(140%) blur(6px);padding:14px 16px;border-bottom:1px solid var(--border)}
-  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
-  .push{margin-left:auto}
-  .btn{background:#111826;border:1px solid var(--border);color:var(--text);padding:10px 16px;border-radius:999px;cursor:pointer;min-height:44px}
-  .btn.primary{background:var(--accent);border-color:var(--accent);color:#00131e}
-  .btn.success{background:var(--accent2);border-color:var(--accent2);color:#001a10}
-  .btn.warn{background:var(--warn);border-color:var(--warn);color:#2b1b00}
-  .btn.danger{background:var(--danger);border-color:var(--danger);color:#2b0000}
-  .wrap{max-width:780px;margin:0 auto;padding:0 12px}
-  .section{padding:12px}
-  .card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius)}
-  .list{display:flex;flex-direction:column}
-  .item{padding:14px;border-bottom:1px solid var(--border);cursor:pointer}
-  .item:last-child{border-bottom:none}
-  .title{font-weight:600}
-  .muted{color:var(--muted)}
-  .pill{display:inline-block;padding:.2rem .55rem;border:1px solid var(--border);border-radius:999px;color:var(--muted);margin-right:6px}
-  .pill.today{background:var(--accent2);border-color:var(--accent2);color:#001a10;font-weight:600}
-  .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
-  @media (min-width:520px){.grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
-  .empty{padding:26px;text-align:center;color:var(--muted)}
-  .tag{font-variant-numeric:tabular-nums;color:var(--muted)}
-  .backdrop{position:fixed;inset:0;background:#0009;display:none;align-items:flex-end;justify-content:center;z-index:5}
-  .sheet{background:var(--card);border:1px solid var(--border);border-bottom:none;border-radius:16px 16px 0 0;width:100%;max-width:720px;padding:16px}
-  label{display:block;margin:10px 0 6px}
+  <style>
+    /* ==========================
+       THEME & GLOBAL RESETS
+       - Centralize colors, spacing, radius
+       - Minimal, legible, mobile-first
+       ========================== */
+    :root{
+      --bg:#0b0e10; --card:#141923; --text:#f3f7fb; --muted:#8fa6bf;
+      --border:#27364d; --accent:#42a5ff; --accent2:#22cc88; --warn:#ffb020; --danger:#ff5d5d;
+      --radius:14px; --pad:14px;
+    }
+    *{box-sizing:border-box}
+    html{ -webkit-text-size-adjust:100% }
+    body{margin:0;background:var(--bg);color:var(--text);font:16px/1.35 system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial; touch-action: manipulation;}
 
-  /* iOS-friendly input sizing to prevent zoom */
-  input,select,textarea,button{font-size:16px;line-height:1.35}
-  input,select{
-    width:100%;background:#0f1520;border:1px solid var(--border);color:var(--text);
-    padding:12px 14px;border-radius:12px;min-height:46px
-  }
-  #countEntries .qtyInp{ font-size:18px; min-height:48px }
+    /* Header bar */
+    header{position:sticky;top:0;z-index:2;background:linear-gradient(#0b0e10,#0b0e1090);backdrop-filter:saturate(140%) blur(6px);padding:14px 16px;border-bottom:1px solid var(--border)}
 
-  .row-end{display:flex;gap:10px;justify-content:flex-end;margin-top:14px}
+    /* Layout helpers */
+    .wrap{max-width:780px;margin:0 auto;padding:0 12px}
+    .section{padding:12px}
+    .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+    .row-end{display:flex;gap:10px;justify-content:flex-end;margin-top:14px}
+    .push{margin-left:auto}
 
-  /* Login */
-  #loginOverlay{position:fixed;inset:0;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;z-index:50}
-  #loginCard{width:min(92vw,420px);background:var(--card);border:1px solid var(--border);border-radius:16px;padding:18px}
-  #loginCard h2{margin:0 0 12px}
-  #loginErr{color:#ff8a8a;min-height:18px;margin-top:6px}
+    /* Components */
+    .card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius)}
+    .list{display:flex;flex-direction:column}
+    .item{padding:14px;border-bottom:1px solid var(--border);cursor:pointer}
+    .item:last-child{border-bottom:none}
+    .title{font-weight:600}
+    .muted{color:var(--muted)}
+    .tag{font-variant-numeric:tabular-nums;color:var(--muted)}
 
-  /* Loading overlay */
-  #loadingOverlay{position:fixed;inset:0;background:rgba(0,0,0,0.6);display:none;align-items:center;justify-content:center;z-index:99}
-  .spinner{width:70px;height:70px;border:6px solid #999;border-top:6px solid var(--accent);border-radius:50%;animation:spin 1s linear infinite}
-  @keyframes spin {from{transform:rotate(0)} to{transform:rotate(360deg)}}
+    /* Buttons */
+    .btn{background:#111826;border:1px solid var(--border);color:var(--text);padding:10px 16px;border-radius:999px;cursor:pointer;min-height:44px}
+    .btn.primary{background:var(--accent);border-color:var(--accent);color:#00131e}
+    .btn.success{background:var(--accent2);border-color:var(--accent2);color:#001a10}
+    .btn.warn{background:var(--warn);border-color:var(--warn);color:#2b1b00}
+    .btn.danger{background:var(--danger);border-color:var(--danger);color:#2b0000}
 
-  body{ touch-action: manipulation; }
+    /* Grids */
+    .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+    @media (min-width:520px){.grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+    .empty{padding:26px;text-align:center;color:var(--muted)}
+    .pill{display:inline-block;padding:.2rem .55rem;border:1px solid var(--border);border-radius:999px;color:var(--muted);margin-right:6px}
+    .pill.today{background:var(--accent2);border-color:var(--accent2);color:#001a10;font-weight:600}
 
-  /* Number inputs: keep numeric keypad but remove tiny spinners */
-  input[type="number"]{
-    appearance: textfield;
-    -moz-appearance: textfield;
-    -webkit-appearance: none;
-  }
-  input[type="number"]::-webkit-outer-spin-button,
-  input[type="number"]::-webkit-inner-spin-button{
-    appearance: none;
-    -webkit-appearance: none;
-    margin: 0;
-  }
-</style>
+    /* Bottom-left credit badge (above login overlay) */
+      #creditBadge{
+        position: fixed;
+        left: 10px;
+        bottom: calc(env(safe-area-inset-bottom, 0px) + 12px); /* stays above iOS home bar */
+        z-index: 120; /* higher than #loginOverlay (50) */
+        font-size: 12px;
+        color: var(--muted);
+        background: rgba(20,25,35,.6);
+        border: 1px solid var(--border);
+        padding: 6px 10px;
+        border-radius: 999px;
+        backdrop-filter: blur(4px) saturate(120%);
+        text-decoration: none;
+        pointer-events: auto; /* ensure clicks are captured */
+      }
+      #creditBadge:hover{ filter: brightness(1.1); }
+      #creditBadge:active{ transform: translateY(1px); }
+
+
+    /* Count sheet modal */
+    .backdrop{position:fixed;inset:0;background:#0009;display:none;align-items:flex-end;justify-content:center;z-index:5}
+    .sheet{background:var(--card);border:1px solid var(--border);border-bottom:none;border-radius:16px 16px 0 0;width:100%;max-width:720px;padding:16px}
+    label{display:block;margin:10px 0 6px}
+
+    /* Inputs (iOS-friendly to avoid zoom) */
+    input,select,textarea,button{font-size:16px;line-height:1.35}
+    input,select{width:100%;background:#0f1520;border:1px solid var(--border);color:var(--text);padding:12px 14px;border-radius:12px;min-height:46px}
+    #countEntries .qtyInp{ font-size:18px; min-height:48px }
+
+    /* Login overlay */
+    #loginOverlay{position:fixed;inset:0;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;z-index:50}
+    #loginCard{width:min(92vw,420px);background:var(--card);border:1px solid var(--border);border-radius:16px;padding:18px}
+    #loginCard h2{margin:0 0 12px}
+    #loginErr{color:#ff8a8a;min-height:18px;margin-top:6px}
+
+    /* Loading overlay */
+    #loadingOverlay{position:fixed;inset:0;background:rgba(0,0,0,0.6);display:none;align-items:center;justify-content:center;z-index:99}
+    .spinner{width:70px;height:70px;border:6px solid #999;border-top:6px solid var(--accent);border-radius:50%;animation:spin 1s linear infinite}
+    @keyframes spin {from{transform:rotate(0)} to{transform:rotate(360deg)}}
+
+    /* Number inputs: keep numeric keypad but remove tiny spinners */
+    input[type="number"]{appearance:textfield;-moz-appearance:textfield;-webkit-appearance:none}
+    input[type="number"]::-webkit-outer-spin-button,
+    input[type="number"]::-webkit-inner-spin-button{appearance:none;-webkit-appearance:none;margin:0}
+  </style>
 </head>
 <body>
+  <!-- ==========================
+       HEADER / GLOBAL CONTROLS
+       - Top bar with quick actions
+       ========================== -->
   <header>
     <div class="wrap row">
       <div class="title">Inventory</div>
@@ -96,16 +121,20 @@
     </div>
   </header>
 
+  <!-- ==========================
+       MAIN: TEMPLATES → AREAS → ITEMS
+       - Three cards shown progressively as the user drills in
+       ========================== -->
   <main class="wrap section">
     <div id="status" class="muted" style="margin:6px 4px 10px"></div>
 
-    <!-- 1) Templates across allowed stores -->
+    <!-- (1) Templates across allowed stores -->
     <div class="card section" id="tmplCard" style="display:none">
       <div class="title" style="margin-bottom:8px">Templates • <span id="authLoc"></span></div>
       <div id="tmplList" class="grid"></div>
     </div>
 
-    <!-- 2) Location summary (Cooler/Dry/Freezer...) -->
+    <!-- (2) Location summary (Cooler/Dry/Freezer/...) -->
     <div class="card section" id="locCard" style="margin-top:14px;display:none">
       <div class="row" style="margin-bottom:8px">
         <div class="title"><span id="tmplNameLoc"></span> • <span id="storeNameLoc"></span></div>
@@ -114,7 +143,7 @@
       <div id="locList" class="grid"></div>
     </div>
 
-    <!-- 3) Items page (for a chosen storage area) -->
+    <!-- (3) Items page (for a chosen storage area) -->
     <div class="card section" id="itemsCard" style="margin-top:14px;display:none">
       <div class="row" style="margin-bottom:8px">
         <div class="title"><span id="tmplName"></span> • <span id="storeName"></span> • <span id="storageAreaName"></span></div>
@@ -124,7 +153,10 @@
     </div>
   </main>
 
-  <!-- Count sheet -->
+  <!-- ==========================
+       COUNT SHEET (Bottom Sheet Modal)
+       - Add one or more UoM quantities per item
+       ========================== -->
   <div id="sheet" class="backdrop">
     <div class="sheet">
       <div class="title" id="sheetTitle">Count</div>
@@ -140,7 +172,10 @@
     </div>
   </div>
 
-  <!-- Login -->
+  <!-- ==========================
+       LOGIN OVERLAY
+       - Simple user/password gate controlled by Apps Script
+       ========================== -->
   <div id="loginOverlay">
     <div id="loginCard">
       <h2>Sign in</h2>
@@ -155,572 +190,528 @@
     </div>
   </div>
 
-  <!-- Loading overlay -->
+  <!-- ==========================
+       LOADING OVERLAY
+       - Fullscreen spinner during network ops
+       ========================== -->
   <div id="loadingOverlay"><div class="spinner"></div></div>
 
+  <!-- ==========================
+       CREDIT BADGE (Bottom-left)
+       - Per request: "Developed and Maintained by Johnny the Analyst"
+       ========================== -->
+  <a id="creditBadge" href="https://johnnyngo.com" target="_blank">
+  Developed and Maintained by Johnny the Analyst
+</a>
+
 <script>
-/* ========= CONFIG ========= */
-const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbwIEXkytbbXU3grZNR2Q4AR64FaT6NQqIwLp2nKbn92xSrywn0hUpE5wFr9U3xxyzj1/exec';
-const STORAGE_KEY = 'inv_logs_v1';
-const SESSION_KEY = 'inv_session_v1'; // { username, locations[] }
-const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+  // =============================================================
+  // CONFIG & CONSTANTS
+  // - Endpoints, storage keys, timezone
+  // =============================================================
+  const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbwIEXkytbbXU3grZNR2Q4AR64FaT6NQqIwLp2nKbn92xSrywn0hUpE5wFr9U3xxyzj1/exec';
+  const STORAGE_KEY = 'inv_logs_v1';
+  const SESSION_KEY = 'inv_session_v1'; // { username, locations[] }
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
 
-/* ========= STATE ========= */
-const state = {
-  template: [],                 // normalized template rows (filtered by allowed stores)
-  byStoreTmpl: new Map(),       // key: store|template => rows[]
-  logsByCountId: new Map(),     // key: count_id => latest log
-  user: null,                   // { username, locations:[] }
+  // =============================================================
+  // STATE
+  // - Central place that tracks templates, logs, user session
+  // =============================================================
+  const state = {
+    template: [],                 // normalized template rows (filtered by allowed stores)
+    byStoreTmpl: new Map(),       // key: store|template => rows[]
+    logsByCountId: new Map(),     // key: count_id => latest log
+    user: null,                   // { username, locations:[] }
 
-  currentStore: null,           // store for current detail view
-  currentTemplate: null,
-  currentStorageArea: null,
-  currentItem: null
-};
-
-/* ========= UTILS ========= */
-const $ = sel => document.querySelector(sel);
-function setStatus(msg){ $('#status').textContent = msg || ''; }
-function nowISO(){ return new Date().toISOString(); }
-function today(tzName=tz){
-  const d = new Date();
-  return new Intl.DateTimeFormat('en-CA',{timeZone:tzName,year:'numeric',month:'2-digit',day:'2-digit'}).format(d);
-}
-function readLogs(){ try{return JSON.parse(localStorage.getItem(STORAGE_KEY)||'[]')}catch{return[]} }
-function writeLogs(rows){ localStorage.setItem(STORAGE_KEY, JSON.stringify(rows)); }
-function saveSession(obj){ sessionStorage.setItem(SESSION_KEY, JSON.stringify(obj)); }
-function readSession(){ try{return JSON.parse(sessionStorage.getItem(SESSION_KEY)||'null')}catch{return null} }
-function clearSession(){ sessionStorage.removeItem(SESSION_KEY); }
-window.addEventListener('beforeunload', ()=>{ try{ clearSession(); }catch(e){} });
-
-function showLoading(){ const o = $('#loadingOverlay'); if(o) o.style.display='flex'; }
-function hideLoading(){ const o = $('#loadingOverlay'); if(o) o.style.display='none'; }
-function showLogin(){ $('#loginOverlay').style.display='flex'; }
-function hideLogin(){ $('#loginOverlay').style.display='none'; }
-
-function normalizeDateTimeStr(s){
-  if(!s) return null;
-  const d = new Date(s);
-  if(!isNaN(d)) return d.toISOString();
-  return null;
-}
-function isTodayISO(iso, tzName = tz){
-  if(!iso) return false;
-  const d = new Date(iso);
-  const fmt = new Intl.DateTimeFormat('en-CA', { timeZone: tzName, year:'numeric', month:'2-digit', day:'2-digit' });
-  return fmt.format(d) === today(tzName);
-}
-
-/* Keep focused input visible when keyboard opens on mobile */
-document.addEventListener('focusin', (e) => {
-  const el = e.target;
-  if (el.tagName === 'INPUT' || el.tagName === 'SELECT' || el.tagName === 'TEXTAREA') {
-    setTimeout(() => { el.scrollIntoView({ block: 'center', behavior: 'smooth' }); }, 120);
-  }
-});
-
-/* ========= NORMALIZE TEMPLATE ROW ========= */
-function normalizeRow(r){
-  const low = Object.fromEntries(Object.entries(r).map(([k,v])=>[String(k).toLowerCase().replace(/\s+/g,'_'), v]));
-  const get =( ...names )=>{
-    for (const k of names){ const v = low[k]; if (v!=null && String(v).trim()!=='') return String(v).trim(); }
-    return '';
+    currentStore: null,           // store for current detail view
+    currentTemplate: null,
+    currentStorageArea: null,
+    currentItem: null
   };
-  return {
-    store_location:   get('location','store','store_location'),
-    storage_location: get('storage_location','storagearea','area'),
-    template_name:    get('template_name','template','template__name'),
-    template_id:      get('template_id','templateid'),
-    location_id:      get('location_id','locationid'),
-    item_id:          get('item_id','id','itemid'),
-    count_id:         get('count_id','countid'),   // <-- required
-    item:             get('item','item_name','name'),
-    uof_m:            get('uof_m','uom','unit'),
-    uof_m_2:          get('uof_m_2','uom_2','unit_2'),
-    uof_m_3:          get('uof_m_3','uom_3','unit_3'),
-  };
-}
 
-/* ========= INDEX BY STORE + TEMPLATE ========= */
-function indexByStoreTemplate(rows){
-  state.byStoreTmpl = new Map();
-  for (const r of rows){
-    const store = r.store_location || 'UnknownStore';
-    const tmpl  = r.template_name  || 'Default';
-    const key = `${store}|${tmpl}`;
-    if(!state.byStoreTmpl.has(key)) state.byStoreTmpl.set(key, []);
-    state.byStoreTmpl.get(key).push(r);
-  }
-  for (const arr of state.byStoreTmpl.values()){
-    arr.sort((a,b)=> String(a.item).localeCompare(String(b.item)));
-  }
-}
+  // =============================================================
+  // DOM HELPERS
+  // - Small utilities for selecting & status updates
+  // =============================================================
+  const $ = sel => document.querySelector(sel);
+  function setStatus(msg){ $('#status').textContent = msg || ''; }
 
-/* ========= LOGS INDEX (by count_id) ========= */
-function indexLogs(logRows){ 
-  const byKey = new Map();
-  for (const r of logRows){
-    const key = String(r.count_id || '').trim();
-    if(!key) continue;
-    if(!byKey.has(key)) byKey.set(key, []);
-    byKey.get(key).push(r);
-  }
-  state.logsByCountId = new Map();
-  for (const [key, logs] of byKey){
-    logs.sort((a,b)=> String(b.count_on || '').localeCompare(String(a.count_on || '')));
-    state.logsByCountId.set(key, logs[0]);
-  }
-}
-
-/* ========= FETCH TEMPLATE / LOGS ========= */
-async function loadTemplateFromSheets(){
-  setStatus('Loading template…');
-  showLoading();
-  try{
-    const res = await fetch(`${WEB_APP_URL}?mode=json&nocache=${Date.now()}`);
-    if(!res.ok) throw new Error(`HTTP ${res.status}`);
-    const json = await res.json();
-    if(!json.ok || !Array.isArray(json.data)) throw new Error(json.error || 'Bad template response');
-
-    const rowsAll = json.data.map(normalizeRow).filter(r=>r.template_id && r.count_id);
-
-    // Build allowed store set
-    let allowedStores;
-    if (state.user?.locations?.includes('ALL')) {
-      allowedStores = new Set(rowsAll.map(r => (r.store_location||'').trim()).filter(Boolean));
-    } else {
-      allowedStores = new Set((state.user?.locations || []).map(s => s.trim()).filter(Boolean));
+  // Keep focused input visible when keyboard opens on mobile
+  document.addEventListener('focusin', (e) => {
+    const el = e.target;
+    if (el.tagName === 'INPUT' || el.tagName === 'SELECT' || el.tagName === 'TEXTAREA') {
+      setTimeout(() => { el.scrollIntoView({ block: 'center', behavior: 'smooth' }); }, 120);
     }
-
-    // Filter by allowed stores
-    const rows = rowsAll.filter(r => allowedStores.has((r.store_location||'').trim()));
-
-    state.template = rows;
-    indexByStoreTemplate(rows);
-    renderTemplates();
-    const storeCount = new Set(rows.map(r => r.store_location)).size;
-    setStatus(`Loaded ${rows.length} items across ${storeCount} location(s)`);
-
-    await loadLogsFromSheets();
-  }catch(err){
-    console.error(err);
-    setStatus('Load failed: '+ err.message);
-    alert('Load failed: ' + err.message);
-  }finally{
-    hideLoading();
-  }
-}
-
-async function loadLogsFromSheets(){
-  setStatus('Loading count logs…');
-  showLoading();
-  try{
-    const res = await fetch(`${WEB_APP_URL}?mode=logs&nocache=${Date.now()}`);
-    if(!res.ok) throw new Error(`HTTP ${res.status}`);
-    const json = await res.json();
-    if(!json.ok || !Array.isArray(json.data)) throw new Error(json.error || 'Bad logs response');
-
-    const remoteLogs = json.data.map(r => ({
-      ...r,
-      count_on: normalizeDateTimeStr(r.count_on),
-      // keep count_id as-is
-      quantity_1: r.quantity_1 === '' || r.quantity_1 == null ? null : parseFloat(r.quantity_1),
-      quantity_2: r.quantity_2 === '' || r.quantity_2 == null ? null : parseFloat(r.quantity_2),
-      quantity_3: r.quantity_3 === '' || r.quantity_3 == null ? null : parseFloat(r.quantity_3),
-    }));
-
-    const localLogs = readLogs();
-    const allLogsToMerge = localLogs.concat(remoteLogs);
-    indexLogs(allLogsToMerge);
-    // Refresh current view without jumping back to templates
-    if (state.currentStorageArea) {
-      openLocation(state.currentStore, state.currentTemplate, state.currentStorageArea);
-    } else if (state.currentTemplate) {
-      openTemplate(state.currentStore, state.currentTemplate);
-    } else {
-      renderTemplates();
-    }
-    setStatus(`Logs loaded. ${remoteLogs.length} remote logs merged with local cache.`);
-  }catch(err){
-    console.error(err);
-    setStatus('Template loaded. Warning: Failed to load remote logs.');
-  }finally{
-    hideLoading();
-  }
-}
-
-/* ========= RENDER: Templates (combined across stores) ========= */
-function renderTemplates(){
-  const tmplCard = $('#tmplCard');
-  const locCard = $('#locCard');
-  const itemsCard = $('#itemsCard');
-  const list = $('#tmplList'); list.innerHTML='';
-  tmplCard.style.display = 'block';
-  locCard.style.display = 'none';
-  itemsCard.style.display = 'none';
-
-  const stores = new Set();
-  for (const [key] of state.byStoreTmpl) stores.add(key.split('|')[0]);
-  const storeArr = Array.from(stores).sort();
-  $('#authLoc').textContent =
-    storeArr.length === 1 ? storeArr[0] : `${storeArr.length} locations`;
-
-  if (state.byStoreTmpl.size === 0){
-    list.innerHTML = `<div class="empty">No templates found</div>`;
-    return;
-  }
-
-  const pairs = [];
-  for(const [key, rows] of state.byStoreTmpl){
-    const [store, tmpl] = key.split('|');
-    pairs.push({ store, tmpl, count: rows.length });
-  }
-  pairs.sort((a,b)=>{
-    const s = String(a.store).localeCompare(String(b.store));
-    if (s !== 0) return s;
-    return String(a.tmpl).localeCompare(String(b.tmpl));
   });
 
-  for(const p of pairs){
-    const btn = document.createElement('button');
-    btn.className = 'btn';
-    btn.style.width='100%';
-    btn.innerHTML = `<div class="row" style="justify-content:space-between">
-      <span>${p.tmpl}</span><span class="tag">${p.store} • ${p.count} items</span></div>`;
-    btn.dataset.store = p.store;
-    btn.dataset.tmpl = p.tmpl;
-    btn.addEventListener('click', (ev)=>{
-      const s = ev.currentTarget.dataset.store;
-      const t = ev.currentTarget.dataset.tmpl;
-      openTemplate(s, t);
-    });
-    list.appendChild(btn);
+  // =============================================================
+  // DATE/TIME HELPERS
+  // - ISO generation, "today" checks in given timezone
+  // =============================================================
+  function nowISO(){ return new Date().toISOString(); }
+  function today(tzName=tz){
+    const d = new Date();
+    return new Intl.DateTimeFormat('en-CA',{timeZone:tzName,year:'numeric',month:'2-digit',day:'2-digit'}).format(d);
   }
-}
-
-/* ========= Location Summary (within a template) ========= */
-function openTemplate(store, tmpl){
-  state.currentStore = store;
-  state.currentTemplate = tmpl;
-  state.currentStorageArea = null;
-
-  $('#tmplCard').style.display='none';
-  $('#locCard').style.display='block';
-  $('#itemsCard').style.display='none';
-  $('#tmplNameLoc').textContent = tmpl;
-  $('#storeNameLoc').textContent = store;
-
-  const container = $('#locList'); container.innerHTML = '';
-  const rows = state.byStoreTmpl.get(`${store}|${tmpl}`) || [];
-  if(!rows.length){ container.innerHTML = `<div class="empty">No locations for this template</div>`; return; }
-
-  const byArea = new Map();
-  for(const r of rows){
-    const area = r.storage_location || 'Other';
-    if(!byArea.has(area)) byArea.set(area, []);
-    byArea.get(area).push(r);
+  function normalizeDateTimeStr(s){
+    if(!s) return null; const d = new Date(s); return isNaN(d) ? null : d.toISOString();
+  }
+  function isTodayISO(iso, tzName = tz){
+    if(!iso) return false; const d = new Date(iso);
+    const fmt = new Intl.DateTimeFormat('en-CA', { timeZone: tzName, year:'numeric', month:'2-digit', day:'2-digit' });
+    return fmt.format(d) === today(tzName);
   }
 
-  const order = ['Cooler','Freezer','Dry'];
-  const sortedAreas = Array.from(byArea.keys()).sort((a,b)=>{
-    const ia = order.indexOf(a), ib = order.indexOf(b);
-    if(ia !== -1 && ib !== -1) return ia - ib;
-    if(ia !== -1) return -1;
-    if(ib !== -1) return 1;
-    return String(a).localeCompare(String(b));
-  });
+  // =============================================================
+  // STORAGE HELPERS
+  // - localStorage for offline logs, sessionStorage for login
+  // =============================================================
+  function readLogs(){ try{return JSON.parse(localStorage.getItem(STORAGE_KEY)||'[]')}catch{return[]} }
+  function writeLogs(rows){ localStorage.setItem(STORAGE_KEY, JSON.stringify(rows)); }
+  function saveSession(obj){ sessionStorage.setItem(SESSION_KEY, JSON.stringify(obj)); }
+  function readSession(){ try{return JSON.parse(sessionStorage.getItem(SESSION_KEY)||'null')}catch{return null} }
+  function clearSession(){ sessionStorage.removeItem(SESSION_KEY); }
+  window.addEventListener('beforeunload', ()=>{ try{ clearSession(); }catch(e){} });
 
-  for(const area of sortedAreas){
-    const areaRows = byArea.get(area);
-    const totalItems = areaRows.length;
-    let countedToday = 0;
-    for(const r of areaRows){
-      const last = state.logsByCountId.get(String(r.count_id || '').trim());
-      if(last && isTodayISO(last.count_on)) countedToday++;
+  // =============================================================
+  // UI OVERLAYS
+  // - show/hide loading & login
+  // =============================================================
+  function showLoading(){ const o = $('#loadingOverlay'); if(o) o.style.display='flex'; }
+  function hideLoading(){ const o = $('#loadingOverlay'); if(o) o.style.display='none'; }
+  function showLogin(){ $('#loginOverlay').style.display='flex'; }
+  function hideLogin(){ $('#loginOverlay').style.display='none'; }
+
+  // =============================================================
+  // NORMALIZERS
+  // - Map incoming sheet row variants to consistent keys
+  // =============================================================
+  function normalizeRow(r){
+    const low = Object.fromEntries(Object.entries(r).map(([k,v])=>[String(k).toLowerCase().replace(/\s+/g,'_'), v]));
+    const get =( ...names )=>{ for (const k of names){ const v = low[k]; if (v!=null && String(v).trim()!=='') return String(v).trim(); } return ''; };
+    return {
+      store_location:   get('location','store','store_location'),
+      storage_location: get('storage_location','storagearea','area'),
+      template_name:    get('template_name','template','template__name'),
+      template_id:      get('template_id','templateid'),
+      location_id:      get('location_id','locationid'),
+      item_id:          get('item_id','id','itemid'),
+      count_id:         get('count_id','countid'),   // REQUIRED
+      item:             get('item','item_name','name'),
+      uof_m:            get('uof_m','uom','unit'),
+      uof_m_2:          get('uof_m_2','uom_2','unit_2'),
+      uof_m_3:          get('uof_m_3','uom_3','unit_3'),
+    };
+  }
+
+  // =============================================================
+  // INDEXERS
+  // - Build in-memory structures for fast lookups
+  // =============================================================
+  function indexByStoreTemplate(rows){
+    state.byStoreTmpl = new Map();
+    for (const r of rows){
+      const store = r.store_location || 'UnknownStore';
+      const tmpl  = r.template_name  || 'Default';
+      const key = `${store}|${tmpl}`;
+      if(!state.byStoreTmpl.has(key)) state.byStoreTmpl.set(key, []);
+      state.byStoreTmpl.get(key).push(r);
     }
-
-    const btn = document.createElement('button');
-    btn.className='btn';
-    btn.style.width='100%';
-    btn.innerHTML = `<div class="row" style="justify-content:space-between">
-      <span>${area}</span>
-      <span class="tag">${totalItems} items • ${countedToday} today</span>
-    </div>`;
-    btn.addEventListener('click', ()=> openLocation(store, tmpl, area));
-    container.appendChild(btn);
+    for (const arr of state.byStoreTmpl.values()){
+      arr.sort((a,b)=> String(a.item).localeCompare(String(b.item)));
+    }
   }
-}
+  function indexLogs(logRows){
+    const byKey = new Map();
+    for (const r of logRows){
+      const key = String(r.count_id || '').trim();
+      if(!key) continue; if(!byKey.has(key)) byKey.set(key, []); byKey.get(key).push(r);
+    }
+    state.logsByCountId = new Map();
+    for (const [key, logs] of byKey){
+      logs.sort((a,b)=> String(b.count_on || '').localeCompare(String(a.count_on || '')));
+      state.logsByCountId.set(key, logs[0]);
+    }
+  }
 
-/* ========= Items within a storage area ========= */
-function openLocation(store, tmpl, area){
-  state.currentStore = store;
-  state.currentTemplate = tmpl;
-  state.currentStorageArea = area;
+  // =============================================================
+  // NETWORK: FETCH TEMPLATE & LOGS
+  // - Pull template rows and last counts from Apps Script
+  // =============================================================
+  async function loadTemplateFromSheets(){
+    setStatus('Loading template…'); showLoading();
+    try{
+      const res = await fetch(`${WEB_APP_URL}?mode=json&nocache=${Date.now()}`);
+      if(!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json();
+      if(!json.ok || !Array.isArray(json.data)) throw new Error(json.error || 'Bad template response');
 
-  $('#tmplCard').style.display='none';
-  $('#locCard').style.display='none';
-  $('#itemsCard').style.display='block';
-  $('#tmplName').textContent = tmpl;
-  $('#storeName').textContent = store;
-  $('#storageAreaName').textContent = area;
+      const rowsAll = json.data.map(normalizeRow).filter(r=>r.template_id && r.count_id);
 
-  const list = $('#itemsList'); list.innerHTML='';
-  const rows = (state.byStoreTmpl.get(`${store}|${tmpl}`) || []).filter(r => (r.storage_location||'Other') === area);
-  if(!rows.length){ list.innerHTML = `<div class="empty">No items</div>`; return; }
-
-  for(const r of rows){
-    const li = document.createElement('div');
-    li.className='item';
-    const lastCount = state.logsByCountId.get(String(r.count_id || '').trim());
-    let lastCountHtml = '';
-
-    if(lastCount && lastCount.count_on){
-      const primaryQty = lastCount['quantity_1']; 
-      const primaryUofm = lastCount['count_uofm_1']; 
-      const todayFlag = isTodayISO(lastCount.count_on);
-      const dt = new Date(lastCount.count_on);
-      const dateDisplay = dt.toLocaleDateString();
-      const timeDisplay = dt.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
-      const dateText = todayFlag ? `Today ${timeDisplay}` : `${dateDisplay} ${timeDisplay}`;
-
-      if (primaryUofm && (primaryQty === 0 || (typeof primaryQty === 'number' && !Number.isNaN(primaryQty)))){
-        lastCountHtml = `<div class="row" style="gap:8px;margin-top:6px;font-size:0.9em;font-weight:400">
-          <span class="pill ${todayFlag ? 'today' : ''}">${primaryQty ?? 0} ${primaryUofm}</span>
-          <span class="muted">${dateText}</span>
-        </div>`;
+      // Build allowed store set
+      let allowedStores;
+      if (state.user?.locations?.includes('ALL')) {
+        allowedStores = new Set(rowsAll.map(r => (r.store_location||'').trim()).filter(Boolean));
       } else {
-        lastCountHtml = `<div class="muted" style="margin-top:6px">${dateText}</div>`;
+        allowedStores = new Set((state.user?.locations || []).map(s => s.trim()).filter(Boolean));
       }
-    } else {
-      lastCountHtml = `<div class="muted" style="margin-top:6px">No previous count</div>`;
-    }
 
-    li.innerHTML = `<div class="title">${r.item}</div>
-      <div class="muted">${r.storage_location || '—'} • ${r.store_location || '—'} • ID ${r.item_id}</div>
-      ${lastCountHtml}`;
-    li.addEventListener('click', ()=> openSheet(r));
-    list.appendChild(li);
+      // Filter by allowed stores
+      const rows = rowsAll.filter(r => allowedStores.has((r.store_location||'').trim()));
+
+      state.template = rows;
+      indexByStoreTemplate(rows);
+      renderTemplates();
+      const storeCount = new Set(rows.map(r => r.store_location)).size;
+      setStatus(`Loaded ${rows.length} items across ${storeCount} location(s)`);
+
+      await loadLogsFromSheets();
+    }catch(err){
+      console.error(err);
+      setStatus('Load failed: '+ err.message);
+      alert('Load failed: ' + err.message);
+    }finally{ hideLoading(); }
   }
-}
 
-/* ========= COUNT SHEET ========= */
-function getUofmOptionsHtml(row){
-  const units = [row.uof_m,row.uof_m_2,row.uof_m_3].filter(Boolean);
-  if(units.length === 0) units.push('EA');
-  let optionsHtml = '<option value="" disabled selected>Select UoM</option>';
-  optionsHtml += units.map(u => `<option value="${u}">${u}</option>`).join('');
-  return optionsHtml;
-}
-function createCountRow(row, container){
-  const optionsHtml = getUofmOptionsHtml(row);
-  const wrapper = document.createElement('div');
-  wrapper.className = 'row count-row';
-  wrapper.style.marginBottom = '10px';
+  async function loadLogsFromSheets(){
+    setStatus('Loading count logs…'); showLoading();
+    try{
+      const res = await fetch(`${WEB_APP_URL}?mode=logs&nocache=${Date.now()}`);
+      if(!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json();
+      if(!json.ok || !Array.isArray(json.data)) throw new Error(json.error || 'Bad logs response');
 
-  const qtyInput = document.createElement('input');
-  qtyInput.type = 'number'; qtyInput.min='0'; qtyInput.inputMode='decimal';
-  qtyInput.placeholder='0'; qtyInput.className='qtyInp'; qtyInput.style.flex='3'; qtyInput.value='';
+      const remoteLogs = json.data.map(r => ({
+        ...r,
+        count_on: normalizeDateTimeStr(r.count_on),
+        quantity_1: r.quantity_1 === '' || r.quantity_1 == null ? null : parseFloat(r.quantity_1),
+        quantity_2: r.quantity_2 === '' || r.quantity_2 == null ? null : parseFloat(r.quantity_2),
+        quantity_3: r.quantity_3 === '' || r.quantity_3 == null ? null : parseFloat(r.quantity_3),
+      }));
 
-  const uofmSelect = document.createElement('select');
-  uofmSelect.className='uofmSel'; uofmSelect.style.flex='2'; uofmSelect.innerHTML = optionsHtml;
+      const localLogs = readLogs();
+      const allLogsToMerge = localLogs.concat(remoteLogs);
+      indexLogs(allLogsToMerge);
 
-  const removeBtn = document.createElement('button');
-  removeBtn.className='btn danger'; removeBtn.style.padding='10px 10px'; removeBtn.textContent='–';
-  removeBtn.onclick = () => {
-    if(container.querySelectorAll('.count-row').length > 1) container.removeChild(wrapper);
-    else { qtyInput.value=''; uofmSelect.value=''; }
-  };
+      // Refresh current view without jumping back to templates
+      if (state.currentStorageArea) {
+        openLocation(state.currentStore, state.currentTemplate, state.currentStorageArea);
+      } else if (state.currentTemplate) {
+        openTemplate(state.currentStore, state.currentTemplate);
+      } else {
+        renderTemplates();
+      }
+      setStatus(`Logs loaded. ${remoteLogs.length} remote logs merged with local cache.`);
+    }catch(err){
+      console.error(err);
+      setStatus('Template loaded. Warning: Failed to load remote logs.');
+    }finally{ hideLoading(); }
+  }
 
-  wrapper.appendChild(qtyInput);
-  wrapper.appendChild(uofmSelect);
-  wrapper.appendChild(removeBtn);
-  container.appendChild(wrapper);
-}
-function openSheet(row){
-  state.currentItem = row;
-  $('#sheetTitle').textContent = row.item;
-  $('#sheetSub').textContent = `${row.storage_location || ''} • ${row.template_id || ''} • ID ${row.item_id || ''}`;
-  const entriesContainer = $('#countEntries');
-  entriesContainer.innerHTML = '';
-  createCountRow(row, entriesContainer);
-  $('#sheet').style.display='flex';
-}
-function closeSheet(){ $('#sheet').style.display='none'; }
+  // =============================================================
+  // RENDERERS
+  // - Templates list → Locations → Items with last-count badges
+  // =============================================================
+  function renderTemplates(){
+    const tmplCard = $('#tmplCard');
+    const locCard = $('#locCard');
+    const itemsCard = $('#itemsCard');
+    const list = $('#tmplList'); list.innerHTML='';
+    tmplCard.style.display = 'block';
+    locCard.style.display = 'none';
+    itemsCard.style.display = 'none';
 
-/* ========= SYNC ========= */
-async function syncSingleRowToGoogle(row){
-  try{
-    const res = await fetch(WEB_APP_URL, {
-      method:'POST',
-      headers:{'Content-Type':'text/plain'},
-      body: JSON.stringify({ action:'appendLogs', rows: [row] }) 
+    const stores = new Set();
+    for (const [key] of state.byStoreTmpl) stores.add(key.split('|')[0]);
+    const storeArr = Array.from(stores).sort();
+    $('#authLoc').textContent = storeArr.length === 1 ? storeArr[0] : `${storeArr.length} locations`;
+
+    if (state.byStoreTmpl.size === 0){ list.innerHTML = `<div class="empty">No templates found</div>`; return; }
+
+    const pairs = [];
+    for(const [key, rows] of state.byStoreTmpl){
+      const [store, tmpl] = key.split('|');
+      pairs.push({ store, tmpl, count: rows.length });
+    }
+    pairs.sort((a,b)=>{ const s = String(a.store).localeCompare(String(b.store)); return s!==0 ? s : String(a.tmpl).localeCompare(String(b.tmpl)); });
+
+    for(const p of pairs){
+      const btn = document.createElement('button');
+      btn.className = 'btn';
+      btn.style.width='100%';
+      btn.innerHTML = `<div class="row" style="justify-content:space-between"><span>${p.tmpl}</span><span class="tag">${p.store} • ${p.count} items</span></div>`;
+      btn.dataset.store = p.store; btn.dataset.tmpl = p.tmpl;
+      btn.addEventListener('click', (ev)=>{ openTemplate(ev.currentTarget.dataset.store, ev.currentTarget.dataset.tmpl); });
+      list.appendChild(btn);
+    }
+  }
+
+  function openTemplate(store, tmpl){
+    state.currentStore = store; state.currentTemplate = tmpl; state.currentStorageArea = null;
+    $('#tmplCard').style.display='none'; $('#locCard').style.display='block'; $('#itemsCard').style.display='none';
+    $('#tmplNameLoc').textContent = tmpl; $('#storeNameLoc').textContent = store;
+
+    const container = $('#locList'); container.innerHTML = '';
+    const rows = state.byStoreTmpl.get(`${store}|${tmpl}`) || [];
+    if(!rows.length){ container.innerHTML = `<div class="empty">No locations for this template</div>`; return; }
+
+    const byArea = new Map();
+    for(const r of rows){ const area = r.storage_location || 'Other'; if(!byArea.has(area)) byArea.set(area, []); byArea.get(area).push(r); }
+
+    const order = ['Cooler','Freezer','Dry'];
+    const sortedAreas = Array.from(byArea.keys()).sort((a,b)=>{
+      const ia = order.indexOf(a), ib = order.indexOf(b);
+      if(ia !== -1 && ib !== -1) return ia - ib; if(ia !== -1) return -1; if(ib !== -1) return 1; return String(a).localeCompare(String(b));
     });
-    const json = await res.json();
-    if(json.ok){ return true; }
-    else{ throw new Error(json.error||'Failed'); }
-  }catch(err){
-    console.error('Single row sync failed:', err); 
-    return false;
-  }
-}
 
-/* ========= SAVE ========= */
-async function saveCount(){ 
-  const r = state.currentItem; if(!r) return;
-  const entriesContainer = $('#countEntries');
-  const countRows = entriesContainer.querySelectorAll('.count-row');
-  const allLogs = readLogs();
-  
-  const countData = [];
-  for(const rowEl of countRows){
-    const val = rowEl.querySelector('.qtyInp').value;
-    const qty = val === '' ? NaN : parseFloat(val);
-    const uofm = rowEl.querySelector('.uofmSel').value; 
-    if(uofm !== '' && !isNaN(qty)) countData.push({ quantity: qty, uofm: uofm });
-  }
-  if(countData.length === 0) { alert('Enter quantity & select UoM for at least one entry.'); return; }
-  
-  const consolidatedLog = {
-    // Order matters only for Apps Script column mapping; it uses header names.
-    count_id: r.count_id,
-    count_on: nowISO(),
-    storage_location: r.storage_location,
-    location_id: r.location_id,
-    template_id: r.template_id,
-    item_id: r.item_id,
-    item: r.item,
-    count_uofm_1: countData[0]?.uofm || '',
-    quantity_1: countData[0]?.quantity ?? null,
-    count_uofm_2: countData[1]?.uofm || '',
-    quantity_2: countData[1]?.quantity ?? null,
-    count_uofm_3: countData[2]?.uofm || '',
-    quantity_3: countData[2]?.quantity ?? null
-  };
-  
-  // Upsert local cache by count_id
-  const logKey = String(r.count_id || '').trim();
-  const idx = allLogs.findIndex(x => String(x.count_id || '').trim() === logKey);
-  if(idx>=0) allLogs[idx] = consolidatedLog; else allLogs.push(consolidatedLog);
-  writeLogs(allLogs);
-  
-  indexLogs(allLogs); 
-  closeSheet();
-  // Stay on the same location page and refresh its items
-  openLocation(state.currentStore, state.currentTemplate, state.currentStorageArea);
-  
-  setStatus(`Saved count • Syncing...`);
-  const success = await syncSingleRowToGoogle(consolidatedLog);
-  setStatus(success
-    ? `Saved & Synced • ${r.item} (${countData.length} entries)`
-    : `Saved (Local Only) • ${r.item} (${countData.length} entries). Press Refresh to pull latest sheet data.`);
-}
+    for(const area of sortedAreas){
+      const areaRows = byArea.get(area);
+      const totalItems = areaRows.length;
+      let countedToday = 0;
+      for(const r of areaRows){ const last = state.logsByCountId.get(String(r.count_id || '').trim()); if(last && isTodayISO(last.count_on)) countedToday++; }
 
-/* ========= EXPORT / CLEAR / REFRESH ========= */
-function toCSV(rows){
-  if(!rows.length) return '';
-  const headers = Object.keys(rows[0]);
-  const esc = s => { const t = String(s??'').replace(/"/g,'""'); return /[",\n]/.test(t) ? `"${t}"` : t; };
-  return [headers.join(',')].concat(rows.map(r=>headers.map(h=>esc(r[h])).join(','))).join('\n');
-}
-function download(name, text){
-  const blob = new Blob([text],{type:'text/csv'});
-  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
-  document.body.appendChild(a); a.click(); a.remove();
-}
-function exportLogs(){
-  const rows = readLogs();
-  if(!rows.length) return alert('No logs to export');
-  download(`count_logs_${today()}.csv`, toCSV(rows));
-}
-function clearLogs(){
-  if(!confirm('Clear all saved logs on this device?')) return;
-  writeLogs([]); 
-  indexLogs([]);
-  setStatus('Logs cleared');
-  renderTemplates(); 
-}
-async function refreshLogsFromSheet(){
-  setStatus('Refreshing logs...');
-  await loadLogsFromSheets();
-}
-
-/* ========= LOGIN ========= */
-async function handleLogin(){
-  const u = $('#loginUser').value.trim();
-  const p = $('#loginPass').value;
-  const err = $('#loginErr'); err.textContent = '';
-  if(!u || !p){ err.textContent = 'Enter username and password.'; return; }
-
-  setStatus('Signing in…');
-  showLoading();
-  try{
-    const url = `${WEB_APP_URL}?mode=auth&u=${encodeURIComponent(u)}&p=${encodeURIComponent(p)}&nocache=${Date.now()}`;
-    const res = await fetch(url, { method:'GET' });
-    if(!res.ok) throw new Error(`HTTP ${res.status}`);
-    const json = await res.json();
-
-    if(!json.ok){
-      err.textContent = json.error || 'Invalid username or password.';
-      return;
+      const btn = document.createElement('button');
+      btn.className='btn'; btn.style.width='100%';
+      btn.innerHTML = `<div class="row" style="justify-content:space-between"><span>${area}</span><span class="tag">${totalItems} items • ${countedToday} today</span></div>`;
+      btn.addEventListener('click', ()=> openLocation(store, tmpl, area));
+      container.appendChild(btn);
     }
-
-    const locations = Array.isArray(json.user.locations) ? json.user.locations : [];
-    state.user = { username: u, locations };
-    saveSession(state.user);
-    hideLogin();
-    indexLogs(readLogs());
-
-    setStatus(`Signed in as ${state.user.username}${locations.includes('ALL') ? ' • admin' : ''}`);
-    await loadTemplateFromSheets(); // renders all allowed templates (no picker)
-  }catch(e){
-    console.error(e);
-    err.textContent = 'Sign-in failed. Try again.';
-  }finally{
-    hideLoading();
   }
-}
 
-function signOut(){
-  clearSession();
-  state.user = null;
-  state.template = [];
-  state.byStoreTmpl = new Map();
-  state.logsByCountId = new Map();
-  state.currentStore = null;
-  state.currentTemplate = null;
-  state.currentStorageArea = null;
-  $('#tmplCard').style.display='none';
-  $('#locCard').style.display='none';
-  $('#itemsCard').style.display='none';
-  showLogin();
-  setStatus('Signed out');
-}
+  function openLocation(store, tmpl, area){
+    state.currentStore = store; state.currentTemplate = tmpl; state.currentStorageArea = area;
 
-/* ========= WIRE UP ========= */
-document.addEventListener('DOMContentLoaded', () => {
-  $('#backToTemplatesBtn').addEventListener('click', ()=> renderTemplates());
-  $('#backToLocationsBtn').addEventListener('click', ()=> openTemplate(state.currentStore, state.currentTemplate));
-  $('#cancelBtn').addEventListener('click', closeSheet);
-  $('#saveBtn').addEventListener('click', saveCount);
-  $('#exportBtn').addEventListener('click', exportLogs);
-  $('#clearBtn').addEventListener('click', clearLogs);
-  $('#syncBtn').addEventListener('click', refreshLogsFromSheet);
-  $('#signOutBtn').addEventListener('click', signOut);
-  $('#addCountBtn').addEventListener('click', () => { if(state.currentItem) createCountRow(state.currentItem, $('#countEntries')); });
-  $('#loginBtn').addEventListener('click', handleLogin);
-  $('#loginPass').addEventListener('keydown', (e)=>{ if(e.key==='Enter') handleLogin(); });
+    $('#tmplCard').style.display='none'; $('#locCard').style.display='none'; $('#itemsCard').style.display='block';
+    $('#tmplName').textContent = tmpl; $('#storeName').textContent = store; $('#storageAreaName').textContent = area;
 
-  const sess = readSession();
-  if(sess && sess.username && Array.isArray(sess.locations)){
-    state.user = sess;
-    hideLogin();
-    indexLogs(readLogs());
-    setStatus(`Signed in as ${state.user.username}${state.user.locations.includes('ALL') ? ' • admin' : ''}`);
-    loadTemplateFromSheets();
-  } else {
-    showLogin();
+    const list = $('#itemsList'); list.innerHTML='';
+    const rows = (state.byStoreTmpl.get(`${store}|${tmpl}`) || []).filter(r => (r.storage_location||'Other') === area);
+    if(!rows.length){ list.innerHTML = `<div class="empty">No items</div>`; return; }
+
+    for(const r of rows){
+      const li = document.createElement('div'); li.className='item';
+      const lastCount = state.logsByCountId.get(String(r.count_id || '').trim());
+      let lastCountHtml = '';
+
+      if(lastCount && lastCount.count_on){
+        const primaryQty = lastCount['quantity_1'];
+        const primaryUofm = lastCount['count_uofm_1'];
+        const todayFlag = isTodayISO(lastCount.count_on);
+        const dt = new Date(lastCount.count_on);
+        const dateDisplay = dt.toLocaleDateString();
+        const timeDisplay = dt.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+        const dateText = todayFlag ? `Today ${timeDisplay}` : `${dateDisplay} ${timeDisplay}`;
+
+        if (primaryUofm && (primaryQty === 0 || (typeof primaryQty === 'number' && !Number.isNaN(primaryQty)))){
+          lastCountHtml = `<div class="row" style="gap:8px;margin-top:6px;font-size:0.9em;font-weight:400">
+            <span class="pill ${todayFlag ? 'today' : ''}">${primaryQty ?? 0} ${primaryUofm}</span>
+            <span class="muted">${dateText}</span>
+          </div>`;
+        } else {
+          lastCountHtml = `<div class="muted" style="margin-top:6px">${dateText}</div>`;
+        }
+      } else {
+        lastCountHtml = `<div class="muted" style="margin-top:6px">No previous count</div>`;
+      }
+
+      li.innerHTML = `<div class="title">${r.item}</div>
+        <div class="muted">${r.storage_location || '—'} • ${r.store_location || '—'} • ID ${r.item_id}</div>
+        ${lastCountHtml}`;
+      li.addEventListener('click', ()=> openSheet(r));
+      list.appendChild(li);
+    }
   }
-});
+
+  // =============================================================
+  // COUNT SHEET HELPERS
+  // - Build dynamic UoM rows; open/close modal
+  // =============================================================
+  function getUofmOptionsHtml(row){
+    const units = [row.uof_m,row.uof_m_2,row.uof_m_3].filter(Boolean);
+    if(units.length === 0) units.push('EA');
+    let optionsHtml = '<option value="" disabled selected>Select UoM</option>';
+    optionsHtml += units.map(u => `<option value="${u}">${u}</option>`).join('');
+    return optionsHtml;
+  }
+  function createCountRow(row, container){
+    const optionsHtml = getUofmOptionsHtml(row);
+    const wrapper = document.createElement('div'); wrapper.className = 'row count-row'; wrapper.style.marginBottom = '10px';
+
+    const qtyInput = document.createElement('input');
+    qtyInput.type = 'number'; qtyInput.min='0'; qtyInput.inputMode='decimal'; qtyInput.placeholder='0'; qtyInput.className='qtyInp'; qtyInput.style.flex='3'; qtyInput.value='';
+
+    const uofmSelect = document.createElement('select');
+    uofmSelect.className='uofmSel'; uofmSelect.style.flex='2'; uofmSelect.innerHTML = optionsHtml;
+
+    const removeBtn = document.createElement('button');
+    removeBtn.className='btn danger'; removeBtn.style.padding='10px 10px'; removeBtn.textContent='–';
+    removeBtn.onclick = () => { const rows = container.querySelectorAll('.count-row'); if(rows.length > 1) container.removeChild(wrapper); else { qtyInput.value=''; uofmSelect.value=''; } };
+
+    wrapper.appendChild(qtyInput); wrapper.appendChild(uofmSelect); wrapper.appendChild(removeBtn);
+    container.appendChild(wrapper);
+  }
+  function openSheet(row){
+    state.currentItem = row;
+    $('#sheetTitle').textContent = row.item;
+    $('#sheetSub').textContent = `${row.storage_location || ''} • ${row.template_id || ''} • ID ${row.item_id || ''}`;
+    const entriesContainer = $('#countEntries'); entriesContainer.innerHTML = '';
+    createCountRow(row, entriesContainer);
+    $('#sheet').style.display='flex';
+  }
+  function closeSheet(){ $('#sheet').style.display='none'; }
+
+  // =============================================================
+  // SYNC & SAVE
+  // - Push a consolidated log row to Apps Script and cache locally
+  // =============================================================
+  async function syncSingleRowToGoogle(row){
+    try{
+      const res = await fetch(WEB_APP_URL, { method:'POST', headers:{'Content-Type':'text/plain'}, body: JSON.stringify({ action:'appendLogs', rows: [row] }) });
+      const json = await res.json();
+      if(json.ok){ return true; } else { throw new Error(json.error||'Failed'); }
+    }catch(err){ console.error('Single row sync failed:', err); return false; }
+  }
+
+  async function saveCount(){
+    const r = state.currentItem; if(!r) return;
+    const entriesContainer = $('#countEntries');
+    const countRows = entriesContainer.querySelectorAll('.count-row');
+    const allLogs = readLogs();
+
+    // Gather valid entries (have qty + UoM)
+    const countData = [];
+    for(const rowEl of countRows){
+      const val = rowEl.querySelector('.qtyInp').value;
+      const qty = val === '' ? NaN : parseFloat(val);
+      const uofm = rowEl.querySelector('.uofmSel').value;
+      if(uofm !== '' && !isNaN(qty)) countData.push({ quantity: qty, uofm });
+    }
+    if(countData.length === 0) { alert('Enter quantity & select UoM for at least one entry.'); return; }
+
+    // Single "consolidated" row (Apps Script uses header names to map)
+    const consolidatedLog = {
+      count_id: r.count_id,
+      count_on: nowISO(),
+      storage_location: r.storage_location,
+      location_id: r.location_id,
+      template_id: r.template_id,
+      item_id: r.item_id,
+      item: r.item,
+      count_uofm_1: countData[0]?.uofm || '',
+      quantity_1: countData[0]?.quantity ?? null,
+      count_uofm_2: countData[1]?.uofm || '',
+      quantity_2: countData[1]?.quantity ?? null,
+      count_uofm_3: countData[2]?.uofm || '',
+      quantity_3: countData[2]?.quantity ?? null
+    };
+
+    // Upsert local cache by count_id
+    const logKey = String(r.count_id || '').trim();
+    const idx = allLogs.findIndex(x => String(x.count_id || '').trim() === logKey);
+    if(idx>=0) allLogs[idx] = consolidatedLog; else allLogs.push(consolidatedLog);
+    writeLogs(allLogs);
+
+    indexLogs(allLogs); closeSheet();
+    // Stay on the same location page and refresh its items
+    openLocation(state.currentStore, state.currentTemplate, state.currentStorageArea);
+
+    setStatus(`Saved count • Syncing...`);
+    const success = await syncSingleRowToGoogle(consolidatedLog);
+    setStatus(success
+      ? `Saved & Synced • ${r.item} (${countData.length} entries)`
+      : `Saved (Local Only) • ${r.item} (${countData.length} entries). Press Refresh to pull latest sheet data.`);
+  }
+
+  // =============================================================
+  // UTIL: EXPORT / CLEAR / REFRESH
+  // - CSV download, local cache clearing, re-pull logs
+  // =============================================================
+  function toCSV(rows){
+    if(!rows.length) return '';
+    const headers = Object.keys(rows[0]);
+    const esc = s => { const t = String(s??'').replace(/"/g,'""'); return /[",\n]/.test(t) ? `"${t}"` : t; };
+    return [headers.join(',')].concat(rows.map(r=>headers.map(h=>esc(r[h])).join(','))).join('\n');
+  }
+  function download(name, text){
+    const blob = new Blob([text],{type:'text/csv'});
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+  }
+  function exportLogs(){ const rows = readLogs(); if(!rows.length) return alert('No logs to export'); download(`count_logs_${today()}.csv`, toCSV(rows)); }
+  function clearLogs(){ if(!confirm('Clear all saved logs on this device?')) return; writeLogs([]); indexLogs([]); setStatus('Logs cleared'); renderTemplates(); }
+  async function refreshLogsFromSheet(){ setStatus('Refreshing logs...'); await loadLogsFromSheets(); }
+
+  // =============================================================
+  // AUTH
+  // - Simple username/password verification via Apps Script
+  // =============================================================
+  async function handleLogin(){
+    const u = $('#loginUser').value.trim();
+    const p = $('#loginPass').value;
+    const err = $('#loginErr'); err.textContent = '';
+    if(!u || !p){ err.textContent = 'Enter username and password.'; return; }
+
+    setStatus('Signing in…'); showLoading();
+    try{
+      const url = `${WEB_APP_URL}?mode=auth&u=${encodeURIComponent(u)}&p=${encodeURIComponent(p)}&nocache=${Date.now()}`;
+      const res = await fetch(url, { method:'GET' });
+      if(!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json();
+
+      if(!json.ok){ err.textContent = json.error || 'Invalid username or password.'; return; }
+
+      const locations = Array.isArray(json.user.locations) ? json.user.locations : [];
+      state.user = { username: u, locations };
+      saveSession(state.user);
+      hideLogin();
+      indexLogs(readLogs());
+
+      setStatus(`Signed in as ${state.user.username}${locations.includes('ALL') ? ' • admin' : ''}`);
+      await loadTemplateFromSheets(); // renders all allowed templates (no picker)
+    }catch(e){ console.error(e); err.textContent = 'Sign-in failed. Try again.'; }
+    finally{ hideLoading(); }
+  }
+
+  function signOut(){
+    clearSession(); state.user = null; state.template = []; state.byStoreTmpl = new Map(); state.logsByCountId = new Map();
+    state.currentStore = null; state.currentTemplate = null; state.currentStorageArea = null;
+    $('#tmplCard').style.display='none'; $('#locCard').style.display='none'; $('#itemsCard').style.display='none';
+    showLogin(); setStatus('Signed out');
+  }
+
+  // =============================================================
+  // EVENT WIRING
+  // - Hook up all buttons and initial session restore
+  // =============================================================
+  document.addEventListener('DOMContentLoaded', () => {
+    // Nav
+    $('#backToTemplatesBtn').addEventListener('click', ()=> renderTemplates());
+    $('#backToLocationsBtn').addEventListener('click', ()=> openTemplate(state.currentStore, state.currentTemplate));
+
+    // Count sheet
+    $('#cancelBtn').addEventListener('click', closeSheet);
+    $('#saveBtn').addEventListener('click', saveCount);
+    $('#addCountBtn').addEventListener('click', () => { if(state.currentItem) createCountRow(state.currentItem, $('#countEntries')); });
+
+    // Top bar actions
+    $('#exportBtn').addEventListener('click', exportLogs);
+    $('#clearBtn').addEventListener('click', clearLogs);
+    $('#syncBtn').addEventListener('click', refreshLogsFromSheet);
+    $('#signOutBtn').addEventListener('click', signOut);
+
+    // Login
+    $('#loginBtn').addEventListener('click', handleLogin);
+    $('#loginPass').addEventListener('keydown', (e)=>{ if(e.key==='Enter') handleLogin(); });
+
+    // Session restore
+    const sess = readSession();
+    if(sess && sess.username && Array.isArray(sess.locations)){
+      state.user = sess; hideLogin(); indexLogs(readLogs());
+      setStatus(`Signed in as ${state.user.username}${state.user.locations.includes('ALL') ? ' • admin' : ''}`);
+      loadTemplateFromSheets();
+    } else { showLogin(); }
+  });
 </script>
 </body>
 </html>
