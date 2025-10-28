@@ -1,5 +1,3 @@
-
-
 <!doctype html>
 <html lang="en">
 <head>
@@ -126,6 +124,7 @@
     </div>
   </main>
 
+  <!-- Count sheet -->
   <div id="sheet" class="backdrop">
     <div class="sheet">
       <div class="title" id="sheetTitle">Count</div>
@@ -142,18 +141,41 @@
   </div>
 
   <!-- Confirm Large Change -->
-<div id="confirmOverlay" class="backdrop">
-  <div class="sheet">
-    <div class="title">Please Confirm 🥺👉👈</div>
-    <div id="confirmText" class="muted" style="margin:10px 0 16px; white-space:pre-wrap"></div>
-    <div class="row-end">
-      <button id="confirmCancelBtn" class="btn">Cancel</button>
-      <button id="confirmOkBtn" class="btn primary">Confirm</button>
+  <div id="confirmOverlay" class="backdrop">
+    <div class="sheet">
+      <div class="title">Please Confirm🥺👉👈</div>
+      <div id="confirmText" class="muted" style="margin:10px 0 16px; white-space:normal"></div>
+      <div class="row-end">
+        <button id="confirmCancelBtn" class="btn">Cancel</button>
+        <button id="confirmOkBtn" class="btn primary">Confirm</button>
+      </div>
     </div>
   </div>
-</div>
 
+  <!-- Export Modal -->
+  <div id="exportOverlay" class="backdrop">
+    <div class="sheet">
+      <div class="title">Export Counts</div>
+      <div class="row" style="margin:8px 0">
+        <div style="flex:1">
+          <label>Date (YYYY-MM-DD)</label>
+          <input id="exportDate" placeholder="YYYY-MM-DD" />
+        </div>
+      </div>
+      <div class="row" style="margin:8px 0">
+        <div style="flex:1">
+          <label>Store • Template</label>
+          <select id="exportStoreTemplate"></select>
+        </div>
+      </div>
+      <div class="row-end">
+        <button id="exportCancelBtn" class="btn">Cancel</button>
+        <button id="exportGoBtn" class="btn primary">Export</button>
+      </div>
+    </div>
+  </div>
 
+  <!-- Login & Loading -->
   <div id="loginOverlay">
     <div id="loginCard">
       <h2>Sign in</h2>
@@ -191,7 +213,7 @@ window.addEventListener('DOMContentLoaded', updateCreditVisibility);
 
 <script>
   // =============================================================
-  // CONFIG & CONSTANTS
+  // 1) CONFIG & CONSTANTS
   // =============================================================
   const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbwIEXkytbbXU3grZNR2Q4AR64FaT6NQqIwLp2nKbn92xSrywn0hUpE5wFr9U3xxyzj1/exec';
   const STORAGE_KEY = 'inv_logs_v1';
@@ -199,7 +221,7 @@ window.addEventListener('DOMContentLoaded', updateCreditVisibility);
   const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
 
   // =============================================================
-  // STATE
+  // 2) STATE
   // =============================================================
   const state = {
     template: [],
@@ -212,15 +234,17 @@ window.addEventListener('DOMContentLoaded', updateCreditVisibility);
     currentStorageArea: null,
     currentItem: null,
 
-    // NEW: UoM normalization map. key: lower(Name) => { normUofm, normQty }
-    uofmMap: new Map()
+    uofmMap: new Map(),
+    remoteLogs: [] // keep the last fetched raw remote logs
   };
 
   // =============================================================
-  // DOM HELPERS
+  // 3) DOM HELPERS
   // =============================================================
   const $ = sel => document.querySelector(sel);
   function setStatus(msg){ $('#status').textContent = msg || ''; }
+  function show(el){ if(el) el.style.display='flex'; }
+  function hide(el){ if(el) el.style.display='none'; }
 
   document.addEventListener('focusin', (e) => {
     const el = e.target;
@@ -230,7 +254,7 @@ window.addEventListener('DOMContentLoaded', updateCreditVisibility);
   });
 
   // =============================================================
-  // DATE/TIME HELPERS
+  // 4) DATE/TIME HELPERS
   // =============================================================
   function nowISO(){ return new Date().toISOString(); }
   function today(tzName=tz){
@@ -247,7 +271,7 @@ window.addEventListener('DOMContentLoaded', updateCreditVisibility);
   }
 
   // =============================================================
-  // STORAGE HELPERS
+  // 5) STORAGE HELPERS
   // =============================================================
   function readLogs(){ try{return JSON.parse(localStorage.getItem(STORAGE_KEY)||'[]')}catch{return[]} }
   function writeLogs(rows){ localStorage.setItem(STORAGE_KEY, JSON.stringify(rows)); }
@@ -257,15 +281,15 @@ window.addEventListener('DOMContentLoaded', updateCreditVisibility);
   window.addEventListener('beforeunload', ()=>{ try{ clearSession(); }catch(e){} });
 
   // =============================================================
-  // UI OVERLAYS
+  // 6) UI OVERLAYS
   // =============================================================
-  function showLoading(){ const o = $('#loadingOverlay'); if(o) o.style.display='flex'; }
-  function hideLoading(){ const o = $('#loadingOverlay'); if(o) o.style.display='none'; }
+  function showLoading(){ show($('#loadingOverlay')); }
+  function hideLoading(){ hide($('#loadingOverlay')); }
   function showLogin(){ $('#loginOverlay').style.display='flex'; }
   function hideLogin(){ $('#loginOverlay').style.display='none'; }
 
   // =============================================================
-  // NORMALIZERS
+  // 7) NORMALIZERS
   // =============================================================
   function normalizeRow(r){
     const low = Object.fromEntries(Object.entries(r).map(([k,v])=>[String(k).toLowerCase().replace(/\s+/g,'_'), v]));
@@ -285,13 +309,9 @@ window.addEventListener('DOMContentLoaded', updateCreditVisibility);
     };
   }
 
-  // NEW: normalizer for the uofm sheet ("Name", "Normalized UofM", "Normalized Qty")
   function normalizeUofmRow(r){
     const low = Object.fromEntries(Object.entries(r).map(([k,v])=>[String(k).toLowerCase().trim(), v]));
-    const get = (...keys)=>{
-      for(const k of keys){ const v = low[k]; if(v!=null && String(v).trim()!=='') return String(v).trim(); }
-      return '';
-    };
+    const get = (...keys)=>{ for(const k of keys){ const v = low[k]; if(v!=null && String(v).trim()!=='') return String(v).trim(); } return ''; };
     const name = get('name','uom','uofm','unit','unit name');
     const normalizedUofm = get('normalized_uofm','normalized uofm','normalized unit','base uom','base_uofm');
     const normalizedQty  = get('normalized_qty','normalized qty','factor','multiplier','base_qty');
@@ -299,7 +319,7 @@ window.addEventListener('DOMContentLoaded', updateCreditVisibility);
   }
 
   // =============================================================
-  // INDEXERS
+  // 8) INDEXERS
   // =============================================================
   function indexByStoreTemplate(rows){
     state.byStoreTmpl = new Map();
@@ -328,10 +348,9 @@ window.addEventListener('DOMContentLoaded', updateCreditVisibility);
   }
 
   // =============================================================
-  // NETWORK
+  // 9) NETWORK
   // =============================================================
   async function loadUofmFromSheets(){
-    // Expect Apps Script endpoint: ?mode=uofm returns { ok:true, data:[{Name, Normalized UofM, Normalized Qty}, ...] }
     try{
       const res = await fetch(`${WEB_APP_URL}?mode=uofm&nocache=${Date.now()}`);
       if(!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -347,16 +366,12 @@ window.addEventListener('DOMContentLoaded', updateCreditVisibility);
       }
       state.uofmMap = map;
       setStatus(`UoM mapping loaded (${map.size})`);
-    }catch(err){
-      console.warn('UoM load failed:', err.message);
-      // Keep empty map; fallback to factor=1 and base_uofm = first entered UoM
-    }
+    }catch(err){ console.warn('UoM load failed:', err.message); }
   }
 
   async function loadTemplateFromSheets(){
     setStatus('Loading template…'); showLoading();
     try{
-      // Load template & uofm in parallel; template depends only on user
       const [templateRes] = await Promise.all([
         fetch(`${WEB_APP_URL}?mode=json&nocache=${Date.now()}`),
         loadUofmFromSheets()
@@ -405,6 +420,7 @@ window.addEventListener('DOMContentLoaded', updateCreditVisibility);
         quantity_2: r.quantity_2 === '' || r.quantity_2 == null ? null : parseFloat(r.quantity_2),
         quantity_3: r.quantity_3 === '' || r.quantity_3 == null ? null : parseFloat(r.quantity_3),
       }));
+      state.remoteLogs = remoteLogs;
 
       const localLogs = readLogs();
       const allLogsToMerge = localLogs.concat(remoteLogs);
@@ -425,7 +441,7 @@ window.addEventListener('DOMContentLoaded', updateCreditVisibility);
   }
 
   // =============================================================
-  // RENDERERS
+  // 10) RENDERERS
   // =============================================================
   function renderTemplates(){
     const tmplCard = $('#tmplCard');
@@ -538,7 +554,7 @@ window.addEventListener('DOMContentLoaded', updateCreditVisibility);
   }
 
   // =============================================================
-  // COUNT SHEET HELPERS
+  // 11) COUNT SHEET HELPERS
   // =============================================================
   function getUofmOptionsHtml(row){
     const units = [row.uof_m,row.uof_m_2,row.uof_m_3].filter(Boolean);
@@ -574,9 +590,7 @@ window.addEventListener('DOMContentLoaded', updateCreditVisibility);
   }
   function closeSheet(){ $('#sheet').style.display='none'; }
 
-  // =============================================================
-  // NEW: BASE UoM / QTY COMPUTE UTIL
-  // =============================================================
+  // Base computation (for confirm logic)
   function computeBaseTotals(countData){
     let baseQty = 0;
     let baseUofm = '';
@@ -586,92 +600,66 @@ window.addEventListener('DOMContentLoaded', updateCreditVisibility);
       const factor = map ? Number(map.normQty) : 1;
       const normUnit = map ? (map.normUofm || uofm) : uofm;
       if(!baseUofm) baseUofm = normUnit;
-      // If different normalized units appear, we still sum using provided multipliers.
       baseQty += (Number(quantity)||0) * (Number.isFinite(factor) ? factor : 1);
     }
     return { base_uofm: baseUofm || (countData[0]?.uofm || ''), base_qty: Number.isFinite(baseQty) ? baseQty : 0 };
   }
-// Build a pretty list of the user's entries like: "Qty1 × UoM1, Qty2 × UoM2, ..."
-function formatCountData(countData){
-  const parts = [];
-  if (countData[0]?.uofm && Number.isFinite(Number(countData[0]?.quantity)))
-    parts.push(`"${countData[0].quantity}" × ${countData[0].uofm}`);
-  if (countData[1]?.uofm && Number.isFinite(Number(countData[1]?.quantity)))
-    parts.push(`"${countData[1].quantity}" × ${countData[1].uofm}`);
-  if (countData[2]?.uofm && Number.isFinite(Number(countData[2]?.quantity)))
-    parts.push(`"${countData[2].quantity}" × ${countData[2].uofm}`);
-  return parts.join(', ');
-}
 
-// Prompt for last count qty
-function formatQtyUom(q, u){
-  if (u && q != null && q !== '' && !Number.isNaN(Number(q))) {
-    return `"${Number(q)}" × ${u}`;
+  function formatCountData(countData){
+    const parts = [];
+    if (countData[0]?.uofm && Number.isFinite(Number(countData[0]?.quantity)))
+      parts.push(`"${countData[0].quantity}" × ${countData[0].uofm}`);
+    if (countData[1]?.uofm && Number.isFinite(Number(countData[1]?.quantity)))
+      parts.push(`"${countData[1].quantity}" × ${countData[1].uofm}`);
+    if (countData[2]?.uofm && Number.isFinite(Number(countData[2]?.quantity)))
+      parts.push(`"${countData[2].quantity}" × ${countData[2].uofm}`);
+    return parts.join(', ');
   }
-  return '';
-}
 
-function formatLogEntriesFromLog(log){
-  const parts = [];
-  parts.push(formatQtyUom(log.quantity_1, log.count_uofm_1));
-  parts.push(formatQtyUom(log.quantity_2, log.count_uofm_2));
-  parts.push(formatQtyUom(log.quantity_3, log.count_uofm_3));
-  return parts.filter(Boolean).join(', ');
-}
-
-function formatLocalDateTime(iso){
-  if(!iso) return '';
-  const d = new Date(iso);
-  if (isNaN(d)) return '';
-  const date = d.toLocaleDateString();
-  const time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  return `${date} ${time}`;
-}
-
-// Compute base_qty for a historical log row using current uofmMap (fallback if base_qty missing)
-function computeBaseFromLog(log){
-  const bk = Number(log.base_qty);
-  const prevU = (log.base_uofm && String(log.base_uofm).trim()) || '';
-  if (Number.isFinite(bk) && bk > 0) {
-    return { base_qty: bk, base_uofm: prevU };
-  }
-  const cd = [];
-  if (log.count_uofm_1 && log.quantity_1 != null) cd.push({ uofm: log.count_uofm_1, quantity: Number(log.quantity_1) });
-  if (log.count_uofm_2 && log.quantity_2 != null) cd.push({ uofm: log.count_uofm_2, quantity: Number(log.quantity_2) });
-  if (log.count_uofm_3 && log.quantity_3 != null) cd.push({ uofm: log.count_uofm_3, quantity: Number(log.quantity_3) });
-  const derived = computeBaseTotals(cd);
-  if (prevU) derived.base_uofm = prevU;  // keep historical label if available
-  return derived;
-}
-
-// Promise-based modal confirm (uses the #confirmOverlay already in DOM)
-function confirmLargeChange(message){
-  return new Promise((resolve) => {
-    const overlay   = document.getElementById('confirmOverlay');
-    const textEl    = document.getElementById('confirmText');
-    const okBtn     = document.getElementById('confirmOkBtn');
-    const cancelBtn = document.getElementById('confirmCancelBtn');
-
-    textEl.textContent = message;
-    overlay.style.display = 'flex';
-
-    const onOk = () => { cleanup(); resolve(true); };
-    const onCancel = () => { cleanup(); resolve(false); };
-
-    function cleanup(){
-      overlay.style.display = 'none';
-      okBtn.removeEventListener('click', onOk);
-      cancelBtn.removeEventListener('click', onCancel);
+  function computeBaseFromLog(log){
+    const bk = Number(log.base_qty);
+    if (Number.isFinite(bk) && bk > 0) {
+      return { base_qty: bk, base_uofm: log.base_uofm || '' };
     }
+    const cd = [];
+    if (log.count_uofm_1 && log.quantity_1 != null) cd.push({ uofm: log.count_uofm_1, quantity: Number(log.quantity_1) });
+    if (log.count_uofm_2 && log.quantity_2 != null) cd.push({ uofm: log.count_uofm_2, quantity: Number(log.quantity_2) });
+    if (log.count_uofm_3 && log.quantity_3 != null) cd.push({ uofm: log.count_uofm_3, quantity: Number(log.quantity_3) });
+    return computeBaseTotals(cd);
+  }
 
-    okBtn.addEventListener('click', onOk);
-    cancelBtn.addEventListener('click', onCancel);
-  });
-}
+  // Promise-based modal confirm (now supports HTML)
+  function confirmLargeChange(message){
+    return new Promise((resolve) => {
+      const overlay = document.getElementById('confirmOverlay');
+      const textEl  = document.getElementById('confirmText');
+      const okBtn   = document.getElementById('confirmOkBtn');
+      const cancelBtn = document.getElementById('confirmCancelBtn');
 
+      // If message looks like HTML, render as HTML; else plain text
+      if (typeof message === 'string' && /<[^>]+>/.test(message)) {
+        textEl.innerHTML = message;
+      } else {
+        textEl.textContent = message;
+      }
+      overlay.style.display = 'flex';
+
+      const onOk = () => { cleanup(); resolve(true); };
+      const onCancel = () => { cleanup(); resolve(false); };
+
+      function cleanup(){
+        overlay.style.display = 'none';
+        okBtn.removeEventListener('click', onOk);
+        cancelBtn.removeEventListener('click', onCancel);
+      }
+
+      okBtn.addEventListener('click', onOk);
+      cancelBtn.addEventListener('click', onCancel);
+    });
+  }
 
   // =============================================================
-  // SYNC & SAVE
+  // 12) SYNC & SAVE
   // =============================================================
   async function syncSingleRowToGoogle(row){
     try{
@@ -685,7 +673,6 @@ function confirmLargeChange(message){
     const r = state.currentItem; if(!r) return;
     const entriesContainer = $('#countEntries');
     const countRows = entriesContainer.querySelectorAll('.count-row');
-    const allLogs = readLogs();
 
     // Gather valid entries (have qty + UoM)
     const countData = [];
@@ -697,30 +684,46 @@ function confirmLargeChange(message){
     }
     if(countData.length === 0) { alert('Enter quantity & select UoM for at least one entry.'); return; }
 
-    // NEW: compute base fields from uofm map
+    // Compute base for confirm check
     const { base_uofm, base_qty } = computeBaseTotals(countData);
-    // Compare vs last count's base qty (if any). If new >= 3x last, ask to confirm.
-    let lastBaseQty = null;
-    const lastLog = state.logsByCountId.get(String(r.count_id || '').trim());
-    if (lastLog) {
-      const derived = computeBaseFromLog(lastLog);
+
+    // Compare vs last count's base qty (if any). If new >= 2x last, ask to confirm with detailed last log (with highlight)
+    let lastBaseQty = null; let lastLog = null;
+    const last = state.logsByCountId.get(String(r.count_id || '').trim());
+    if (last) {
+      lastLog = last;
+      const derived = computeBaseFromLog(last);
       if (Number.isFinite(derived.base_qty)) lastBaseQty = derived.base_qty;
     }
 
-    if (Number.isFinite(base_qty) && lastBaseQty != null && lastBaseQty > 0 && base_qty >= 3 * lastBaseQty) {
-      const enteredParts = formatCountData(countData);
-      const prevParts = formatLogEntriesFromLog(lastLog);
-      const prevWhen  = formatLocalDateTime(lastLog.count_on);
-      const msg =
-        `Last count (${prevWhen}):\n${prevParts || '(no entries)'}\n\n` +
-        `You entered:\n${enteredParts || '(no entries)'}\n\n` +
-        `This is much higher than last time. Please confirm to continue.`;
+    if (Number.isFinite(base_qty) && lastBaseQty != null && lastBaseQty > 0 && base_qty >= 2 * lastBaseQty){
+      const dt = lastLog?.count_on ? new Date(lastLog.count_on) : null;
+      const when = dt ? `${dt.toLocaleDateString()} ${dt.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}` : '(no time)';
 
+      const highlight = (q,u) => `<b style="color:#42a5ff">${q}</b> <b style="color:#ffb020">${u}</b>`;
 
+      const enteredHTML = countData
+        .filter(e => e.uofm && Number.isFinite(e.quantity))
+        .map(e => highlight(e.quantity, e.uofm))
+        .join(', ');
+
+      const triples = [
+        { u: lastLog?.count_uofm_1, q: lastLog?.quantity_1 },
+        { u: lastLog?.count_uofm_2, q: lastLog?.quantity_2 },
+        { u: lastLog?.count_uofm_3, q: lastLog?.quantity_3 },
+      ].filter(t => t.u && (t.q === 0 || (typeof t.q === 'number' && !Number.isNaN(t.q))));
+
+      const lastHTML = triples.map(t => highlight(t.q, t.u)).join(', ');
+
+      const msg = `
+        <div>You entered: ${enteredHTML || '(no entries)'}</div>
+        <div style="margin-top:8px;color:#aaa">This seems high compared to the last count.</div>
+        <div style="margin-top:12px">Last count: ${lastHTML || '(none)'} on <span style="color:#8fa6bf">${when}</span></div>
+        <div style="margin-top:16px;font-weight:500">Please confirm to continue.</div>
+      `;
       const ok = await confirmLargeChange(msg);
-      if (!ok) return; // user cancelled
+      if (!ok) return;
     }
-
 
     // Single consolidated row
     const consolidatedLog = {
@@ -738,7 +741,7 @@ function confirmLargeChange(message){
       quantity_2: countData[1]?.quantity ?? null,
       count_uofm_3: countData[2]?.uofm || '',
       quantity_3: countData[2]?.quantity ?? null,
-      // NEW outputs
+      // outputs (also saved server-side)
       base_uofm: base_uofm || '',
       base_qty: base_qty
     };
@@ -750,7 +753,11 @@ function confirmLargeChange(message){
     if(idx>=0) existing[idx] = consolidatedLog; else existing.push(consolidatedLog);
     writeLogs(existing);
 
-    indexLogs(existing); closeSheet();
+    // Merge into UI index without losing remote rows
+    const merged = existing.concat(state.remoteLogs || []);
+    indexLogs(merged);
+
+    closeSheet();
     openLocation(state.currentStore, state.currentTemplate, state.currentStorageArea);
 
     setStatus(`Saved count • Syncing...`);
@@ -761,8 +768,50 @@ function confirmLargeChange(message){
   }
 
   // =============================================================
-  // UTIL
+  // 13) EXPORT UTILITIES
   // =============================================================
+  function norm(s){ return String(s || '').trim().toLowerCase(); }
+  function localDateKey(iso, tzName = tz){
+    if (!iso) return '';
+    const d = new Date(iso);
+    if (isNaN(d)) return '';
+    return new Intl.DateTimeFormat('en-CA', { timeZone: tzName, year:'numeric', month:'2-digit', day:'2-digit' }).format(d);
+  }
+
+  // Latest full row by item for a date
+  function buildDailyLatestRowByItem(logs, dateStr){
+    const map = new Map();
+    for (const log of logs){
+      const iso = normalizeDateTimeStr(log.count_on);
+      if (!iso) continue;
+      if (localDateKey(iso, tz) !== dateStr) continue;
+
+      const nameKey = norm(log.item);
+      if (!nameKey) continue;
+
+      const t = new Date(iso).getTime();
+      const prev = map.get(nameKey);
+      if (!prev || t > prev._t){
+        map.set(nameKey, { ...log, _t: t });
+      }
+    }
+    return map;
+  }
+
+  // Get qty for a UoM only from that single latest row
+  function qtyFromLogByUofm(log, uofm){
+    if (!log || !uofm) return '';
+    const target = norm(uofm);
+    for (let i = 1; i <= 3; i++){
+      const U = norm(log[`count_uofm_${i}`] || '');
+      if (U && U === target){
+        const q = Number(log[`quantity_${i}`]);
+        return Number.isFinite(q) ? q : '';
+      }
+    }
+    return '';
+  }
+
   function toCSV(rows){
     if(!rows.length) return '';
     const headers = Object.keys(rows[0]);
@@ -774,12 +823,122 @@ function confirmLargeChange(message){
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
     document.body.appendChild(a); a.click(); a.remove();
   }
-  function exportLogs(){ const rows = readLogs(); if(!rows.length) return alert('No logs to export'); download(`count_logs_${today()}.csv`, toCSV(rows)); }
-  function clearLogs(){ if(!confirm('Clear all saved logs on this device?')) return; writeLogs([]); indexLogs([]); setStatus('Logs cleared'); renderTemplates(); }
-  async function refreshLogsFromSheet(){ setStatus('Refreshing logs...'); await loadLogsFromSheets(); }
+
+  // Open/close export modal and populate template dropdown
+  function openExportModal(){
+    $('#exportDate').value = today();
+
+    const sel = $('#exportStoreTemplate');
+    sel.innerHTML = '';
+    const opts = [];
+    for (const [key] of state.byStoreTmpl){
+      const [store, tmpl] = key.split('|');
+      opts.push({ key, store, tmpl });
+    }
+    opts.sort((a,b)=> (a.store.localeCompare(b.store) || a.tmpl.localeCompare(b.tmpl)) );
+
+    for (const o of opts){
+      const el = document.createElement('option');
+      el.value = o.key; el.textContent = `${o.store} • ${o.tmpl}`;
+      if (state.currentStore && state.currentTemplate && `${state.currentStore}|${state.currentTemplate}` === o.key) el.selected = true;
+      sel.appendChild(el);
+    }
+
+    $('#exportOverlay').style.display = 'flex';
+  }
+  function closeExportModal(){ $('#exportOverlay').style.display = 'none'; }
+
+  async function runExport(){
+    const dateStr = ($('#exportDate').value || '').trim();
+    const key = $('#exportStoreTemplate').value;
+    if (!dateStr) { alert('Enter a date (YYYY-MM-DD)'); return; }
+    if (!key) { alert('Choose Store • Template'); return; }
+
+    const rows = state.byStoreTmpl.get(key) || [];
+    if (!rows.length){ alert('No items under selected Store • Template'); return; }
+
+    showLoading(); // spinner ON
+    try{
+      // Pull fresh logs for the export moment
+      let logs = [];
+      try{
+        const res = await fetch(`${WEB_APP_URL}?mode=logs&nocache=${Date.now()}`);
+        const json = await res.json();
+        if (json.ok && Array.isArray(json.data)){
+          logs = json.data.map(r => ({
+            ...r,
+            count_on:  normalizeDateTimeStr(r.count_on),
+            quantity_1: r.quantity_1 === '' || r.quantity_1 == null ? null : parseFloat(r.quantity_1),
+            quantity_2: r.quantity_2 === '' || r.quantity_2 == null ? null : parseFloat(r.quantity_2),
+            quantity_3: r.quantity_3 === '' || r.quantity_3 == null ? null : parseFloat(r.quantity_3),
+          }));
+        }
+      }catch(e){ alert('Failed to load logs for export.'); return; }
+
+      // itemdetail lookup (optional). If unavailable, fallback to template UoMs
+      const itemDetailMap = new Map(); // name -> {U1,U2,U3}
+      try{
+        const r2 = await fetch(`${WEB_APP_URL}?mode=itemdetail&nocache=${Date.now()}`);
+        const j2 = await r2.json();
+        if (j2.ok && Array.isArray(j2.data)){
+          for (const rec of j2.data){
+            const low = Object.fromEntries(Object.entries(rec).map(([k,v])=>[String(k).toLowerCase().trim(), v]));
+            const nameKey = norm(low.name || low.itemname);
+            if (!nameKey) continue;
+            itemDetailMap.set(nameKey, {
+              U1: low.inventoryuofm || '',
+              U2: low.countuofm2 || '',
+              U3: low.countuofm3 || '',
+            });
+          }
+        }
+      }catch(e){ /* ignore, fallback */ }
+
+      // Build latest full row by item
+      const latestRowByItem = buildDailyLatestRowByItem(logs, dateStr);
+
+      // Compose export rows; suppress duplicate UoMs (fill first only)
+      const out = [];
+      for (const r of rows){
+        const nameKey = norm(r.item);
+        const det = itemDetailMap.get(nameKey) || {};
+        const U1raw = det.U1 || r.uof_m || '';
+        const U2raw = det.U2 || r.uof_m_2 || '';
+        const U3raw = det.U3 || r.uof_m_3 || '';
+
+        // normalize for duplicate detection
+        const seen = new Set();
+        const U1 = U1raw || '';
+        const U2 = (!U2raw || norm(U2raw) === norm(U1)) ? '' : U2raw;
+        const U3 = (!U3raw || norm(U3raw) === norm(U1) || norm(U3raw) === norm(U2raw)) ? '' : U3raw;
+
+        const latest = latestRowByItem.get(nameKey);
+        const q1 = U1 ? qtyFromLogByUofm(latest, U1) : '';
+        const q2 = U2 ? qtyFromLogByUofm(latest, U2) : '';
+        const q3 = U3 ? qtyFromLogByUofm(latest, U3) : '';
+
+        out.push({
+          StorageLocation: r.storage_location || '',
+          Item: r.item || '',
+          UofM: U1,  Qty:  q1,
+          UofM2: U2,  Qty2: q2,
+          UofM3: U3,  Qty3: q3,
+        });
+      }
+
+      if (!out.length){ alert('Nothing to export.'); return; }
+      const csv = toCSV(out);
+      download(`count_export_${key.replace('|','__')}_${dateStr}.csv`, csv);
+
+      // Close modal and return view
+      closeExportModal();
+    } finally {
+      hideLoading(); // spinner OFF even if error
+    }
+  }
 
   // =============================================================
-  // AUTH
+  // 14) AUTH
   // =============================================================
   async function handleLogin(){
     const u = $('#loginUser').value.trim();
@@ -816,7 +975,7 @@ function confirmLargeChange(message){
   }
 
   // =============================================================
-  // EVENT WIRING
+  // 15) EVENT WIRING
   // =============================================================
   document.addEventListener('DOMContentLoaded', () => {
     $('#backToTemplatesBtn').addEventListener('click', ()=> renderTemplates());
@@ -826,9 +985,12 @@ function confirmLargeChange(message){
     $('#saveBtn').addEventListener('click', saveCount);
     $('#addCountBtn').addEventListener('click', () => { if(state.currentItem) createCountRow(state.currentItem, $('#countEntries')); });
 
-    $('#exportBtn').addEventListener('click', exportLogs);
-    $('#clearBtn').addEventListener('click', clearLogs);
-    $('#syncBtn').addEventListener('click', refreshLogsFromSheet);
+    $('#exportBtn').addEventListener('click', openExportModal);
+    $('#exportCancelBtn').addEventListener('click', closeExportModal);
+    $('#exportGoBtn').addEventListener('click', runExport);
+
+    $('#clearBtn').addEventListener('click', ()=>{ if(!confirm('Clear all saved logs on this device?')) return; writeLogs([]); indexLogs([]); setStatus('Logs cleared'); renderTemplates(); });
+    $('#syncBtn').addEventListener('click', async ()=>{ setStatus('Refreshing logs...'); await loadLogsFromSheets(); });
     $('#signOutBtn').addEventListener('click', signOut);
 
     $('#loginBtn').addEventListener('click', handleLogin);
@@ -844,4 +1006,3 @@ function confirmLargeChange(message){
 </script>
 </body>
 </html>
-
