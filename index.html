@@ -1,3 +1,5 @@
+
+
 <!doctype html>
 <html lang="en">
 <head>
@@ -10,11 +12,6 @@
   <link rel="preconnect" href="https://script.googleusercontent.com">
 
   <style>
-    /* ==========================
-       THEME & GLOBAL RESETS
-       - Centralize colors, spacing, radius
-       - Minimal, legible, mobile-first
-       ========================== */
     :root{
       --bg:#0b0e10; --card:#141923; --text:#f3f7fb; --muted:#8fa6bf;
       --border:#27364d; --accent:#42a5ff; --accent2:#22cc88; --warn:#ffb020; --danger:#ff5d5d;
@@ -24,17 +21,13 @@
     html{ -webkit-text-size-adjust:100% }
     body{margin:0;background:var(--bg);color:var(--text);font:16px/1.35 system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial; touch-action: manipulation;}
 
-    /* Header bar */
     header{position:sticky;top:0;z-index:2;background:linear-gradient(#0b0e10,#0b0e1090);backdrop-filter:saturate(140%) blur(6px);padding:14px 16px;border-bottom:1px solid var(--border)}
-
-    /* Layout helpers */
     .wrap{max-width:780px;margin:0 auto;padding:0 12px}
     .section{padding:12px}
     .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
     .row-end{display:flex;gap:10px;justify-content:flex-end;margin-top:14px}
     .push{margin-left:auto}
 
-    /* Components */
     .card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius)}
     .list{display:flex;flex-direction:column}
     .item{padding:14px;border-bottom:1px solid var(--border);cursor:pointer}
@@ -43,72 +36,59 @@
     .muted{color:var(--muted)}
     .tag{font-variant-numeric:tabular-nums;color:var(--muted)}
 
-    /* Buttons */
     .btn{background:#111826;border:1px solid var(--border);color:var(--text);padding:10px 16px;border-radius:999px;cursor:pointer;min-height:44px}
     .btn.primary{background:var(--accent);border-color:var(--accent);color:#00131e}
     .btn.success{background:var(--accent2);border-color:var(--accent2);color:#001a10}
     .btn.warn{background:var(--warn);border-color:var(--warn);color:#2b1b00}
     .btn.danger{background:var(--danger);border-color:var(--danger);color:#2b0000}
 
-    /* Grids */
     .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
     @media (min-width:520px){.grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
     .empty{padding:26px;text-align:center;color:var(--muted)}
     .pill{display:inline-block;padding:.2rem .55rem;border:1px solid var(--border);border-radius:999px;color:var(--muted);margin-right:6px}
     .pill.today{background:var(--accent2);border-color:var(--accent2);color:#001a10;font-weight:600}
 
-    /* Bottom-left credit badge (above login overlay) */
-      #creditBadge{
-        position: fixed;
-        left: 10px;
-        bottom: calc(env(safe-area-inset-bottom, 0px) + 12px); /* stays above iOS home bar */
-        z-index: 120; /* higher than #loginOverlay (50) */
-        font-size: 12px;
-        color: var(--muted);
-        background: rgba(20,25,35,.6);
-        border: 1px solid var(--border);
-        padding: 6px 10px;
-        border-radius: 999px;
-        backdrop-filter: blur(4px) saturate(120%);
-        text-decoration: none;
-        pointer-events: auto; /* ensure clicks are captured */
-      }
-      #creditBadge:hover{ filter: brightness(1.1); }
-      #creditBadge:active{ transform: translateY(1px); }
+    #creditBadge{
+      position: fixed;
+      left: 10px;
+      bottom: calc(env(safe-area-inset-bottom, 0px) + 12px);
+      z-index: 120;
+      font-size: 12px;
+      color: var(--muted);
+      background: rgba(20,25,35,.6);
+      border: 1px solid var(--border);
+      padding: 6px 10px;
+      border-radius: 999px;
+      backdrop-filter: blur(4px) saturate(120%);
+      text-decoration: none;
+      pointer-events: auto;
+    }
+    #creditBadge:hover{ filter: brightness(1.1); }
+    #creditBadge:active{ transform: translateY(1px); }
 
-
-    /* Count sheet modal */
     .backdrop{position:fixed;inset:0;background:#0009;display:none;align-items:flex-end;justify-content:center;z-index:5}
     .sheet{background:var(--card);border:1px solid var(--border);border-bottom:none;border-radius:16px 16px 0 0;width:100%;max-width:720px;padding:16px}
     label{display:block;margin:10px 0 6px}
 
-    /* Inputs (iOS-friendly to avoid zoom) */
     input,select,textarea,button{font-size:16px;line-height:1.35}
     input,select{width:100%;background:#0f1520;border:1px solid var(--border);color:var(--text);padding:12px 14px;border-radius:12px;min-height:46px}
     #countEntries .qtyInp{ font-size:18px; min-height:48px }
 
-    /* Login overlay */
     #loginOverlay{position:fixed;inset:0;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;z-index:50}
     #loginCard{width:min(92vw,420px);background:var(--card);border:1px solid var(--border);border-radius:16px;padding:18px}
     #loginCard h2{margin:0 0 12px}
     #loginErr{color:#ff8a8a;min-height:18px;margin-top:6px}
 
-    /* Loading overlay */
     #loadingOverlay{position:fixed;inset:0;background:rgba(0,0,0,0.6);display:none;align-items:center;justify-content:center;z-index:99}
     .spinner{width:70px;height:70px;border:6px solid #999;border-top:6px solid var(--accent);border-radius:50%;animation:spin 1s linear infinite}
     @keyframes spin {from{transform:rotate(0)} to{transform:rotate(360deg)}}
 
-    /* Number inputs: keep numeric keypad but remove tiny spinners */
     input[type="number"]{appearance:textfield;-moz-appearance:textfield;-webkit-appearance:none}
     input[type="number"]::-webkit-outer-spin-button,
     input[type="number"]::-webkit-inner-spin-button{appearance:none;-webkit-appearance:none;margin:0}
   </style>
 </head>
 <body>
-  <!-- ==========================
-       HEADER / GLOBAL CONTROLS
-       - Top bar with quick actions
-       ========================== -->
   <header>
     <div class="wrap row">
       <div class="title">Inventory</div>
@@ -121,20 +101,14 @@
     </div>
   </header>
 
-  <!-- ==========================
-       MAIN: TEMPLATES → AREAS → ITEMS
-       - Three cards shown progressively as the user drills in
-       ========================== -->
   <main class="wrap section">
     <div id="status" class="muted" style="margin:6px 4px 10px"></div>
 
-    <!-- (1) Templates across allowed stores -->
     <div class="card section" id="tmplCard" style="display:none">
       <div class="title" style="margin-bottom:8px">Templates • <span id="authLoc"></span></div>
       <div id="tmplList" class="grid"></div>
     </div>
 
-    <!-- (2) Location summary (Cooler/Dry/Freezer/...) -->
     <div class="card section" id="locCard" style="margin-top:14px;display:none">
       <div class="row" style="margin-bottom:8px">
         <div class="title"><span id="tmplNameLoc"></span> • <span id="storeNameLoc"></span></div>
@@ -143,7 +117,6 @@
       <div id="locList" class="grid"></div>
     </div>
 
-    <!-- (3) Items page (for a chosen storage area) -->
     <div class="card section" id="itemsCard" style="margin-top:14px;display:none">
       <div class="row" style="margin-bottom:8px">
         <div class="title"><span id="tmplName"></span> • <span id="storeName"></span> • <span id="storageAreaName"></span></div>
@@ -153,10 +126,6 @@
     </div>
   </main>
 
-  <!-- ==========================
-       COUNT SHEET (Bottom Sheet Modal)
-       - Add one or more UoM quantities per item
-       ========================== -->
   <div id="sheet" class="backdrop">
     <div class="sheet">
       <div class="title" id="sheetTitle">Count</div>
@@ -172,10 +141,19 @@
     </div>
   </div>
 
-  <!-- ==========================
-       LOGIN OVERLAY
-       - Simple user/password gate controlled by Apps Script
-       ========================== -->
+  <!-- Confirm Large Change -->
+<div id="confirmOverlay" class="backdrop">
+  <div class="sheet">
+    <div class="title">Please Confirm 🥺👉👈</div>
+    <div id="confirmText" class="muted" style="margin:10px 0 16px; white-space:pre-wrap"></div>
+    <div class="row-end">
+      <button id="confirmCancelBtn" class="btn">Cancel</button>
+      <button id="confirmOkBtn" class="btn primary">Confirm</button>
+    </div>
+  </div>
+</div>
+
+
   <div id="loginOverlay">
     <div id="loginCard">
       <h2>Sign in</h2>
@@ -190,54 +168,60 @@
     </div>
   </div>
 
-  <!-- ==========================
-       LOADING OVERLAY
-       - Fullscreen spinner during network ops
-       ========================== -->
   <div id="loadingOverlay"><div class="spinner"></div></div>
 
-  <!-- ==========================
-       CREDIT BADGE (Bottom-left)
-       - Per request: "Developed and Maintained by Johnny the Analyst"
-       ========================== -->
   <a id="creditBadge" href="https://johnnyngo.com" target="_blank">
-  Developed and Maintained by Johnny the Analyst
-</a>
+    Developed and Maintained by Johnny the Analyst
+  </a>
+
+<script>
+// Show credit only when login overlay visible OR template summary visible
+const credit = document.getElementById('creditBadge');
+const loginOverlay = document.getElementById('loginOverlay');
+const tmplCard = document.getElementById('tmplCard');
+function updateCreditVisibility(){
+  const isLoginVisible = loginOverlay && loginOverlay.style.display !== 'none';
+  const isTemplateVisible = tmplCard && tmplCard.style.display !== 'none';
+  credit.style.display = (isLoginVisible || isTemplateVisible) ? 'block' : 'none';
+}
+const observer = new MutationObserver(updateCreditVisibility);
+observer.observe(document.body, { attributes: true, subtree: true, attributeFilter: ['style'] });
+window.addEventListener('DOMContentLoaded', updateCreditVisibility);
+</script>
 
 <script>
   // =============================================================
   // CONFIG & CONSTANTS
-  // - Endpoints, storage keys, timezone
   // =============================================================
   const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbwIEXkytbbXU3grZNR2Q4AR64FaT6NQqIwLp2nKbn92xSrywn0hUpE5wFr9U3xxyzj1/exec';
   const STORAGE_KEY = 'inv_logs_v1';
-  const SESSION_KEY = 'inv_session_v1'; // { username, locations[] }
+  const SESSION_KEY = 'inv_session_v1';
   const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
 
   // =============================================================
   // STATE
-  // - Central place that tracks templates, logs, user session
   // =============================================================
   const state = {
-    template: [],                 // normalized template rows (filtered by allowed stores)
-    byStoreTmpl: new Map(),       // key: store|template => rows[]
-    logsByCountId: new Map(),     // key: count_id => latest log
-    user: null,                   // { username, locations:[] }
+    template: [],
+    byStoreTmpl: new Map(),
+    logsByCountId: new Map(),
+    user: null,
 
-    currentStore: null,           // store for current detail view
+    currentStore: null,
     currentTemplate: null,
     currentStorageArea: null,
-    currentItem: null
+    currentItem: null,
+
+    // NEW: UoM normalization map. key: lower(Name) => { normUofm, normQty }
+    uofmMap: new Map()
   };
 
   // =============================================================
   // DOM HELPERS
-  // - Small utilities for selecting & status updates
   // =============================================================
   const $ = sel => document.querySelector(sel);
   function setStatus(msg){ $('#status').textContent = msg || ''; }
 
-  // Keep focused input visible when keyboard opens on mobile
   document.addEventListener('focusin', (e) => {
     const el = e.target;
     if (el.tagName === 'INPUT' || el.tagName === 'SELECT' || el.tagName === 'TEXTAREA') {
@@ -247,7 +231,6 @@
 
   // =============================================================
   // DATE/TIME HELPERS
-  // - ISO generation, "today" checks in given timezone
   // =============================================================
   function nowISO(){ return new Date().toISOString(); }
   function today(tzName=tz){
@@ -265,7 +248,6 @@
 
   // =============================================================
   // STORAGE HELPERS
-  // - localStorage for offline logs, sessionStorage for login
   // =============================================================
   function readLogs(){ try{return JSON.parse(localStorage.getItem(STORAGE_KEY)||'[]')}catch{return[]} }
   function writeLogs(rows){ localStorage.setItem(STORAGE_KEY, JSON.stringify(rows)); }
@@ -276,7 +258,6 @@
 
   // =============================================================
   // UI OVERLAYS
-  // - show/hide loading & login
   // =============================================================
   function showLoading(){ const o = $('#loadingOverlay'); if(o) o.style.display='flex'; }
   function hideLoading(){ const o = $('#loadingOverlay'); if(o) o.style.display='none'; }
@@ -285,7 +266,6 @@
 
   // =============================================================
   // NORMALIZERS
-  // - Map incoming sheet row variants to consistent keys
   // =============================================================
   function normalizeRow(r){
     const low = Object.fromEntries(Object.entries(r).map(([k,v])=>[String(k).toLowerCase().replace(/\s+/g,'_'), v]));
@@ -297,7 +277,7 @@
       template_id:      get('template_id','templateid'),
       location_id:      get('location_id','locationid'),
       item_id:          get('item_id','id','itemid'),
-      count_id:         get('count_id','countid'),   // REQUIRED
+      count_id:         get('count_id','countid'),
       item:             get('item','item_name','name'),
       uof_m:            get('uof_m','uom','unit'),
       uof_m_2:          get('uof_m_2','uom_2','unit_2'),
@@ -305,9 +285,21 @@
     };
   }
 
+  // NEW: normalizer for the uofm sheet ("Name", "Normalized UofM", "Normalized Qty")
+  function normalizeUofmRow(r){
+    const low = Object.fromEntries(Object.entries(r).map(([k,v])=>[String(k).toLowerCase().trim(), v]));
+    const get = (...keys)=>{
+      for(const k of keys){ const v = low[k]; if(v!=null && String(v).trim()!=='') return String(v).trim(); }
+      return '';
+    };
+    const name = get('name','uom','uofm','unit','unit name');
+    const normalizedUofm = get('normalized_uofm','normalized uofm','normalized unit','base uom','base_uofm');
+    const normalizedQty  = get('normalized_qty','normalized qty','factor','multiplier','base_qty');
+    return { name, normalizedUofm, normalizedQty: normalizedQty ? Number(normalizedQty) : NaN };
+  }
+
   // =============================================================
   // INDEXERS
-  // - Build in-memory structures for fast lookups
   // =============================================================
   function indexByStoreTemplate(rows){
     state.byStoreTmpl = new Map();
@@ -336,20 +328,46 @@
   }
 
   // =============================================================
-  // NETWORK: FETCH TEMPLATE & LOGS
-  // - Pull template rows and last counts from Apps Script
+  // NETWORK
   // =============================================================
+  async function loadUofmFromSheets(){
+    // Expect Apps Script endpoint: ?mode=uofm returns { ok:true, data:[{Name, Normalized UofM, Normalized Qty}, ...] }
+    try{
+      const res = await fetch(`${WEB_APP_URL}?mode=uofm&nocache=${Date.now()}`);
+      if(!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json();
+      if(!json.ok || !Array.isArray(json.data)) throw new Error(json.error || 'Bad UoM response');
+      const rows = json.data.map(normalizeUofmRow).filter(r=>r.name);
+      const map = new Map();
+      for(const r of rows){
+        const key = r.name.toLowerCase();
+        const factor = Number.isFinite(r.normalizedQty) ? r.normalizedQty : 1;
+        const normU = r.normalizedUofm || r.name; // fallback
+        map.set(key, { normUofm: normU, normQty: factor });
+      }
+      state.uofmMap = map;
+      setStatus(`UoM mapping loaded (${map.size})`);
+    }catch(err){
+      console.warn('UoM load failed:', err.message);
+      // Keep empty map; fallback to factor=1 and base_uofm = first entered UoM
+    }
+  }
+
   async function loadTemplateFromSheets(){
     setStatus('Loading template…'); showLoading();
     try{
-      const res = await fetch(`${WEB_APP_URL}?mode=json&nocache=${Date.now()}`);
-      if(!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = await res.json();
+      // Load template & uofm in parallel; template depends only on user
+      const [templateRes] = await Promise.all([
+        fetch(`${WEB_APP_URL}?mode=json&nocache=${Date.now()}`),
+        loadUofmFromSheets()
+      ]);
+      if(!templateRes.ok) throw new Error(`HTTP ${templateRes.status}`);
+      const json = await templateRes.json();
       if(!json.ok || !Array.isArray(json.data)) throw new Error(json.error || 'Bad template response');
 
       const rowsAll = json.data.map(normalizeRow).filter(r=>r.template_id && r.count_id);
 
-      // Build allowed store set
+      // Allowed stores
       let allowedStores;
       if (state.user?.locations?.includes('ALL')) {
         allowedStores = new Set(rowsAll.map(r => (r.store_location||'').trim()).filter(Boolean));
@@ -357,9 +375,7 @@
         allowedStores = new Set((state.user?.locations || []).map(s => s.trim()).filter(Boolean));
       }
 
-      // Filter by allowed stores
       const rows = rowsAll.filter(r => allowedStores.has((r.store_location||'').trim()));
-
       state.template = rows;
       indexByStoreTemplate(rows);
       renderTemplates();
@@ -394,7 +410,6 @@
       const allLogsToMerge = localLogs.concat(remoteLogs);
       indexLogs(allLogsToMerge);
 
-      // Refresh current view without jumping back to templates
       if (state.currentStorageArea) {
         openLocation(state.currentStore, state.currentTemplate, state.currentStorageArea);
       } else if (state.currentTemplate) {
@@ -411,7 +426,6 @@
 
   // =============================================================
   // RENDERERS
-  // - Templates list → Locations → Items with last-count badges
   // =============================================================
   function renderTemplates(){
     const tmplCard = $('#tmplCard');
@@ -525,7 +539,6 @@
 
   // =============================================================
   // COUNT SHEET HELPERS
-  // - Build dynamic UoM rows; open/close modal
   // =============================================================
   function getUofmOptionsHtml(row){
     const units = [row.uof_m,row.uof_m_2,row.uof_m_3].filter(Boolean);
@@ -562,8 +575,103 @@
   function closeSheet(){ $('#sheet').style.display='none'; }
 
   // =============================================================
+  // NEW: BASE UoM / QTY COMPUTE UTIL
+  // =============================================================
+  function computeBaseTotals(countData){
+    let baseQty = 0;
+    let baseUofm = '';
+    for(const {quantity, uofm} of countData){
+      const key = String(uofm||'').toLowerCase();
+      const map = state.uofmMap.get(key);
+      const factor = map ? Number(map.normQty) : 1;
+      const normUnit = map ? (map.normUofm || uofm) : uofm;
+      if(!baseUofm) baseUofm = normUnit;
+      // If different normalized units appear, we still sum using provided multipliers.
+      baseQty += (Number(quantity)||0) * (Number.isFinite(factor) ? factor : 1);
+    }
+    return { base_uofm: baseUofm || (countData[0]?.uofm || ''), base_qty: Number.isFinite(baseQty) ? baseQty : 0 };
+  }
+// Build a pretty list of the user's entries like: "Qty1 × UoM1, Qty2 × UoM2, ..."
+function formatCountData(countData){
+  const parts = [];
+  if (countData[0]?.uofm && Number.isFinite(Number(countData[0]?.quantity)))
+    parts.push(`"${countData[0].quantity}" × ${countData[0].uofm}`);
+  if (countData[1]?.uofm && Number.isFinite(Number(countData[1]?.quantity)))
+    parts.push(`"${countData[1].quantity}" × ${countData[1].uofm}`);
+  if (countData[2]?.uofm && Number.isFinite(Number(countData[2]?.quantity)))
+    parts.push(`"${countData[2].quantity}" × ${countData[2].uofm}`);
+  return parts.join(', ');
+}
+
+// Prompt for last count qty
+function formatQtyUom(q, u){
+  if (u && q != null && q !== '' && !Number.isNaN(Number(q))) {
+    return `"${Number(q)}" × ${u}`;
+  }
+  return '';
+}
+
+function formatLogEntriesFromLog(log){
+  const parts = [];
+  parts.push(formatQtyUom(log.quantity_1, log.count_uofm_1));
+  parts.push(formatQtyUom(log.quantity_2, log.count_uofm_2));
+  parts.push(formatQtyUom(log.quantity_3, log.count_uofm_3));
+  return parts.filter(Boolean).join(', ');
+}
+
+function formatLocalDateTime(iso){
+  if(!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d)) return '';
+  const date = d.toLocaleDateString();
+  const time = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  return `${date} ${time}`;
+}
+
+// Compute base_qty for a historical log row using current uofmMap (fallback if base_qty missing)
+function computeBaseFromLog(log){
+  const bk = Number(log.base_qty);
+  const prevU = (log.base_uofm && String(log.base_uofm).trim()) || '';
+  if (Number.isFinite(bk) && bk > 0) {
+    return { base_qty: bk, base_uofm: prevU };
+  }
+  const cd = [];
+  if (log.count_uofm_1 && log.quantity_1 != null) cd.push({ uofm: log.count_uofm_1, quantity: Number(log.quantity_1) });
+  if (log.count_uofm_2 && log.quantity_2 != null) cd.push({ uofm: log.count_uofm_2, quantity: Number(log.quantity_2) });
+  if (log.count_uofm_3 && log.quantity_3 != null) cd.push({ uofm: log.count_uofm_3, quantity: Number(log.quantity_3) });
+  const derived = computeBaseTotals(cd);
+  if (prevU) derived.base_uofm = prevU;  // keep historical label if available
+  return derived;
+}
+
+// Promise-based modal confirm (uses the #confirmOverlay already in DOM)
+function confirmLargeChange(message){
+  return new Promise((resolve) => {
+    const overlay   = document.getElementById('confirmOverlay');
+    const textEl    = document.getElementById('confirmText');
+    const okBtn     = document.getElementById('confirmOkBtn');
+    const cancelBtn = document.getElementById('confirmCancelBtn');
+
+    textEl.textContent = message;
+    overlay.style.display = 'flex';
+
+    const onOk = () => { cleanup(); resolve(true); };
+    const onCancel = () => { cleanup(); resolve(false); };
+
+    function cleanup(){
+      overlay.style.display = 'none';
+      okBtn.removeEventListener('click', onOk);
+      cancelBtn.removeEventListener('click', onCancel);
+    }
+
+    okBtn.addEventListener('click', onOk);
+    cancelBtn.addEventListener('click', onCancel);
+  });
+}
+
+
+  // =============================================================
   // SYNC & SAVE
-  // - Push a consolidated log row to Apps Script and cache locally
   // =============================================================
   async function syncSingleRowToGoogle(row){
     try{
@@ -589,7 +697,32 @@
     }
     if(countData.length === 0) { alert('Enter quantity & select UoM for at least one entry.'); return; }
 
-    // Single "consolidated" row (Apps Script uses header names to map)
+    // NEW: compute base fields from uofm map
+    const { base_uofm, base_qty } = computeBaseTotals(countData);
+    // Compare vs last count's base qty (if any). If new >= 3x last, ask to confirm.
+    let lastBaseQty = null;
+    const lastLog = state.logsByCountId.get(String(r.count_id || '').trim());
+    if (lastLog) {
+      const derived = computeBaseFromLog(lastLog);
+      if (Number.isFinite(derived.base_qty)) lastBaseQty = derived.base_qty;
+    }
+
+    if (Number.isFinite(base_qty) && lastBaseQty != null && lastBaseQty > 0 && base_qty >= 3 * lastBaseQty) {
+      const enteredParts = formatCountData(countData);
+      const prevParts = formatLogEntriesFromLog(lastLog);
+      const prevWhen  = formatLocalDateTime(lastLog.count_on);
+      const msg =
+        `Last count (${prevWhen}):\n${prevParts || '(no entries)'}\n\n` +
+        `You entered:\n${enteredParts || '(no entries)'}\n\n` +
+        `This is much higher than last time. Please confirm to continue.`;
+
+
+      const ok = await confirmLargeChange(msg);
+      if (!ok) return; // user cancelled
+    }
+
+
+    // Single consolidated row
     const consolidatedLog = {
       count_id: r.count_id,
       count_on: nowISO(),
@@ -598,22 +731,26 @@
       template_id: r.template_id,
       item_id: r.item_id,
       item: r.item,
+      // input entries
       count_uofm_1: countData[0]?.uofm || '',
       quantity_1: countData[0]?.quantity ?? null,
       count_uofm_2: countData[1]?.uofm || '',
       quantity_2: countData[1]?.quantity ?? null,
       count_uofm_3: countData[2]?.uofm || '',
-      quantity_3: countData[2]?.quantity ?? null
+      quantity_3: countData[2]?.quantity ?? null,
+      // NEW outputs
+      base_uofm: base_uofm || '',
+      base_qty: base_qty
     };
 
     // Upsert local cache by count_id
     const logKey = String(r.count_id || '').trim();
-    const idx = allLogs.findIndex(x => String(x.count_id || '').trim() === logKey);
-    if(idx>=0) allLogs[idx] = consolidatedLog; else allLogs.push(consolidatedLog);
-    writeLogs(allLogs);
+    const existing = readLogs();
+    const idx = existing.findIndex(x => String(x.count_id || '').trim() === logKey);
+    if(idx>=0) existing[idx] = consolidatedLog; else existing.push(consolidatedLog);
+    writeLogs(existing);
 
-    indexLogs(allLogs); closeSheet();
-    // Stay on the same location page and refresh its items
+    indexLogs(existing); closeSheet();
     openLocation(state.currentStore, state.currentTemplate, state.currentStorageArea);
 
     setStatus(`Saved count • Syncing...`);
@@ -624,8 +761,7 @@
   }
 
   // =============================================================
-  // UTIL: EXPORT / CLEAR / REFRESH
-  // - CSV download, local cache clearing, re-pull logs
+  // UTIL
   // =============================================================
   function toCSV(rows){
     if(!rows.length) return '';
@@ -644,7 +780,6 @@
 
   // =============================================================
   // AUTH
-  // - Simple username/password verification via Apps Script
   // =============================================================
   async function handleLogin(){
     const u = $('#loginUser').value.trim();
@@ -668,7 +803,7 @@
       indexLogs(readLogs());
 
       setStatus(`Signed in as ${state.user.username}${locations.includes('ALL') ? ' • admin' : ''}`);
-      await loadTemplateFromSheets(); // renders all allowed templates (no picker)
+      await loadTemplateFromSheets();
     }catch(e){ console.error(e); err.textContent = 'Sign-in failed. Try again.'; }
     finally{ hideLoading(); }
   }
@@ -682,29 +817,23 @@
 
   // =============================================================
   // EVENT WIRING
-  // - Hook up all buttons and initial session restore
   // =============================================================
   document.addEventListener('DOMContentLoaded', () => {
-    // Nav
     $('#backToTemplatesBtn').addEventListener('click', ()=> renderTemplates());
     $('#backToLocationsBtn').addEventListener('click', ()=> openTemplate(state.currentStore, state.currentTemplate));
 
-    // Count sheet
     $('#cancelBtn').addEventListener('click', closeSheet);
     $('#saveBtn').addEventListener('click', saveCount);
     $('#addCountBtn').addEventListener('click', () => { if(state.currentItem) createCountRow(state.currentItem, $('#countEntries')); });
 
-    // Top bar actions
     $('#exportBtn').addEventListener('click', exportLogs);
     $('#clearBtn').addEventListener('click', clearLogs);
     $('#syncBtn').addEventListener('click', refreshLogsFromSheet);
     $('#signOutBtn').addEventListener('click', signOut);
 
-    // Login
     $('#loginBtn').addEventListener('click', handleLogin);
     $('#loginPass').addEventListener('keydown', (e)=>{ if(e.key==='Enter') handleLogin(); });
 
-    // Session restore
     const sess = readSession();
     if(sess && sess.username && Array.isArray(sess.locations)){
       state.user = sess; hideLogin(); indexLogs(readLogs());
@@ -715,3 +844,4 @@
 </script>
 </body>
 </html>
+
