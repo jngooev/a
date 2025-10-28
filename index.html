@@ -4,6 +4,11 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
   <title>Inventory Count (Mobile)</title>
+    <!-- PWA Manifest & Icons -->
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="theme-color" content="#0b0e10">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+
 
   <!-- Preconnects for faster Apps Script calls -->
   <link rel="preconnect" href="https://script.google.com">
@@ -1003,6 +1008,26 @@ window.addEventListener('DOMContentLoaded', updateCreditVisibility);
       loadTemplateFromSheets();
     } else { showLogin(); }
   });
+
+  // ====== PWA Registration & Notifications ======
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./sw.js')
+    .then(reg => console.log('Service Worker registered:', reg))
+    .catch(err => console.error('SW registration failed:', err));
+}
+
+// Request notification permission (optional)
+async function askNotificationPermission() {
+  const perm = await Notification.requestPermission();
+  if (perm === 'granted') {
+    new Notification('✅ Notifications enabled', {
+      body: 'You’ll get inventory alerts here.',
+      icon: 'icons/icon-192.png'
+    });
+  }
+}
+
 </script>
 </body>
 </html>
+
