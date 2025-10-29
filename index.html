@@ -291,7 +291,44 @@ window.addEventListener('DOMContentLoaded', updateCreditVisibility);
   function readSession(){ try{return JSON.parse(sessionStorage.getItem(SESSION_KEY)||'null')}catch{return null} }
   function clearSession(){ sessionStorage.removeItem(SESSION_KEY); }
   window.addEventListener('beforeunload', ()=>{ try{ clearSession(); }catch(e){} });
-
+  // =============================================================
+// 5b) PENDING SYNC QUEUE HELPERS
+// =============================================================
+const PENDING_KEY = 'inv_pending_v1';
+function readPendingQueue(){
+  try { return JSON.parse(localStorage.getItem(PENDING_KEY) || '[]'); } catch { return []; }
+}
+function writePendingQueue(rows){ localStorage.setItem(PENDING_KEY, JSON.stringify(rows)); }
+// Upsert by count_id (replace the same item’s last log)
+function enqueuePending(row){
+  const q = readPendingQueue();
+  const key = String(row.count_id || '').trim();
+  const i = q.findIndex(r => String(r.count_id||'').trim() === key);
+  if (i >= 0) q[i] = row; else q.push(row);
+  writePendingQueue(q);
+}
+// Drain queue: try to POST each; keep failures
+async function drainSyncQueue(){
+  if (!navigator.onLine) return;
+  const q = readPendingQueue();
+  if (!q.length) return;
+  const keep = [];
+  for (const row of q){
+    try{
+      const res = await fetch(WEB_APP_URL, {
+        method: 'POST',
+        headers: {'Content-Type':'text/plain'},
+        body: JSON.stringify({ action:'appendLogs', rows:[row] })
+      });
+      const j = await res.json();
+      if (!j.ok) keep.push(row); // keep if server rejected
+    }catch{
+      keep.push(row);            // keep if network error
+    }
+  }
+  writePendingQueue(keep);
+  if (keep.length === 0) setStatus('✅ All offline counts synced.');
+}
   // =============================================================
   // 6) UI OVERLAYS
   // =============================================================
@@ -682,11 +719,15 @@ window.addEventListener('DOMContentLoaded', updateCreditVisibility);
   }
 
   async function saveCount(){
-    const r = state.currentItem; if(!r) return;
+  const saveBtn = document.getElementById('saveBtn');
+  saveBtn.disabled = true;
+
+  try{
+    const r = state.currentItem; if(!r){ saveBtn.disabled = false; return; }
     const entriesContainer = $('#countEntries');
     const countRows = entriesContainer.querySelectorAll('.count-row');
 
-    // Gather valid entries (have qty + UoM)
+    // Gather valid entries
     const countData = [];
     for(const rowEl of countRows){
       const val = rowEl.querySelector('.qtyInp').value;
@@ -696,10 +737,10 @@ window.addEventListener('DOMContentLoaded', updateCreditVisibility);
     }
     if(countData.length === 0) { alert('Enter quantity & select UoM for at least one entry.'); return; }
 
-    // Compute base for confirm check
+    // Base calc
     const { base_uofm, base_qty } = computeBaseTotals(countData);
 
-    // Compare vs last count's base qty (if any). If new >= 2x last, ask to confirm with detailed last log (with highlight)
+    // (Optional) large change confirm — unchanged from your version
     let lastBaseQty = null; let lastLog = null;
     const last = state.logsByCountId.get(String(r.count_id || '').trim());
     if (last) {
@@ -707,26 +748,17 @@ window.addEventListener('DOMContentLoaded', updateCreditVisibility);
       const derived = computeBaseFromLog(last);
       if (Number.isFinite(derived.base_qty)) lastBaseQty = derived.base_qty;
     }
-
     if (Number.isFinite(base_qty) && lastBaseQty != null && lastBaseQty > 0 && base_qty >= 2 * lastBaseQty){
       const dt = lastLog?.count_on ? new Date(lastLog.count_on) : null;
       const when = dt ? `${dt.toLocaleDateString()} ${dt.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}` : '(no time)';
-
       const highlight = (q,u) => `<b style="color:#42a5ff">${q}</b> <b style="color:#ffb020">${u}</b>`;
-
-      const enteredHTML = countData
-        .filter(e => e.uofm && Number.isFinite(e.quantity))
-        .map(e => highlight(e.quantity, e.uofm))
-        .join(', ');
-
+      const enteredHTML = countData.filter(e => e.uofm && Number.isFinite(e.quantity)).map(e => highlight(e.quantity,e.uofm)).join(', ');
       const triples = [
         { u: lastLog?.count_uofm_1, q: lastLog?.quantity_1 },
         { u: lastLog?.count_uofm_2, q: lastLog?.quantity_2 },
         { u: lastLog?.count_uofm_3, q: lastLog?.quantity_3 },
       ].filter(t => t.u && (t.q === 0 || (typeof t.q === 'number' && !Number.isNaN(t.q))));
-
       const lastHTML = triples.map(t => highlight(t.q, t.u)).join(', ');
-
       const msg = `
         <div>You entered: ${enteredHTML || '(no entries)'}</div>
         <div style="margin-top:8px;color:#aaa">This seems high compared to the last count.</div>
@@ -737,7 +769,7 @@ window.addEventListener('DOMContentLoaded', updateCreditVisibility);
       if (!ok) return;
     }
 
-    // Single consolidated row
+    // Build the consolidated row
     const consolidatedLog = {
       count_id: r.count_id,
       count_on: nowISO(),
@@ -746,56 +778,49 @@ window.addEventListener('DOMContentLoaded', updateCreditVisibility);
       template_id: r.template_id,
       item_id: r.item_id,
       item: r.item,
-      // input entries
       count_uofm_1: countData[0]?.uofm || '',
-      quantity_1: countData[0]?.quantity ?? null,
+      quantity_1:  countData[0]?.quantity ?? null,
       count_uofm_2: countData[1]?.uofm || '',
-      quantity_2: countData[1]?.quantity ?? null,
+      quantity_2:  countData[1]?.quantity ?? null,
       count_uofm_3: countData[2]?.uofm || '',
-      quantity_3: countData[2]?.quantity ?? null,
-      // outputs (also saved server-side)
+      quantity_3:  countData[2]?.quantity ?? null,
       base_uofm: base_uofm || '',
-      base_qty: base_qty
+      base_qty:  base_qty
     };
 
-    // Upsert local cache by count_id
+    // 1) Always upsert local cache first (so offline is instant)
     const logKey = String(r.count_id || '').trim();
     const existing = readLogs();
-    const idx = existing.findIndex(x => String(x.count_id || '').trim() === logKey);
-    if(idx>=0) existing[idx] = consolidatedLog; else existing.push(consolidatedLog);
+    const i = existing.findIndex(x => String(x.count_id || '').trim() === logKey);
+    if (i >= 0) existing[i] = consolidatedLog; else existing.push(consolidatedLog);
     writeLogs(existing);
 
-    // Merge into UI index without losing remote rows
+    // 2) Update in-memory index & UI immediately
     const merged = existing.concat(state.remoteLogs || []);
     indexLogs(merged);
+    closeSheet();
+    openLocation(state.currentStore, state.currentTemplate, state.currentStorageArea);
 
-closeSheet();
-openLocation(state.currentStore, state.currentTemplate, state.currentStorageArea);
-
-setStatus(`Saved count • Syncing...`);
-const success = await syncSingleRowToGoogle(consolidatedLog);
-
-// 🔹 If sync works, remove from queue
-// 🔹 If fails or offline, enqueue it for later
-if (success) {
-  removeFromQueueByKey(consolidatedLog.count_id);
-  setStatus(`Saved & Synced • ${r.item} (${countData.length} entries)`);
-} else {
-  enqueueUnsent(consolidatedLog);
-  setStatus(`Saved (Local Only) • ${r.item}. Will auto-sync when online.`);
-  
-  // optional background sync trigger
-  if ('serviceWorker' in navigator && 'SyncManager' in window) {
-    try {
-      const reg = await navigator.serviceWorker.ready;
-      await reg.sync.register('sync-logs');
-    } catch (err) {
-      console.warn('Background sync registration failed:', err);
+    // 3) Network: try live sync; if offline or failed, enqueue
+    if (!navigator.onLine){
+      enqueuePending(consolidatedLog);
+      setStatus('Saved locally (offline). Will sync when online.');
+      return;
     }
-  }
 
+    try{
+      const ok = await syncSingleRowToGoogle(consolidatedLog);
+      if (!ok) throw new Error('server rejected');
+      setStatus(`Saved & Synced • ${r.item} (${countData.length} entries)`);
+    }catch(e){
+      enqueuePending(consolidatedLog);
+      setStatus(`Saved locally (sync failed). Will retry automatically.`);
+    }
+  } finally {
+    saveBtn.disabled = false;
+  }
 }
-}
+
   // =============================================================
   // 13) EXPORT UTILITIES
   // =============================================================
@@ -1009,7 +1034,17 @@ if (success) {
   document.addEventListener('DOMContentLoaded', () => {
     updateOfflineBanner();
     drainSyncQueue();
+    window.addEventListener('online', () => {
+    setStatus('Back online — syncing offline counts…');
+    drainSyncQueue();
+  });
 
+  window.addEventListener('offline', () => {
+    setStatus('⚠️ You are offline. Counts will be saved locally.');
+    updateOfflineBanner();
+  });
+
+  $('#backToTemplatesBtn').addEventListener('click', ()=> renderTemplates());
     $('#backToTemplatesBtn').addEventListener('click', ()=> renderTemplates());
     $('#backToLocationsBtn').addEventListener('click', ()=> openTemplate(state.currentStore, state.currentTemplate));
 
@@ -1101,3 +1136,4 @@ if ('serviceWorker' in navigator){
 </script>
 </body>
 </html>
+
