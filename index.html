@@ -4,11 +4,6 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
   <title>Inventory Count (Mobile)</title>
-    <!-- PWA Manifest & Icons -->
-  <link rel="manifest" href="manifest.webmanifest">
-  <meta name="theme-color" content="#0b0e10">
-  <link rel="apple-touch-icon" href="images.png">
-
 
   <!-- Preconnects for faster Apps Script calls -->
   <link rel="preconnect" href="https://script.google.com">
@@ -91,10 +86,15 @@
     input[type="number"]::-webkit-inner-spin-button{appearance:none;-webkit-appearance:none;margin:0}
   </style>
 </head>
-
-
 <body>
   <header>
+
+<div id="offlineBanner" style="display:none;
+  position:sticky;top:56px;z-index:9;background:#2b1b00;color:#ffb020;
+  padding:10px 12px;border-bottom:1px solid #5a3c00;text-align:center;">
+  You’re offline — new counts will be saved on this device and synced automatically when you’re online.
+</div>
+
     <div class="wrap row">
       <div class="title">Inventory</div>
       <div class="push row">
@@ -259,6 +259,11 @@ window.addEventListener('DOMContentLoaded', updateCreditVisibility);
       setTimeout(() => { el.scrollIntoView({ block: 'center', behavior: 'smooth' }); }, 120);
     }
   });
+  function showOfflineBanner(){ const el = document.getElementById('offlineBanner'); if(el) el.style.display = 'block'; }
+  function hideOfflineBanner(){ const el = document.getElementById('offlineBanner'); if(el) el.style.display = 'none'; }
+  function updateOfflineBanner(){ navigator.onLine ? hideOfflineBanner() : showOfflineBanner(); }
+  window.addEventListener('online',  () => { updateOfflineBanner(); drainSyncQueue(); });
+  window.addEventListener('offline', () => { updateOfflineBanner(); });
 
   // =============================================================
   // 4) DATE/TIME HELPERS
@@ -764,16 +769,33 @@ window.addEventListener('DOMContentLoaded', updateCreditVisibility);
     const merged = existing.concat(state.remoteLogs || []);
     indexLogs(merged);
 
-    closeSheet();
-    openLocation(state.currentStore, state.currentTemplate, state.currentStorageArea);
+closeSheet();
+openLocation(state.currentStore, state.currentTemplate, state.currentStorageArea);
 
-    setStatus(`Saved count • Syncing...`);
-    const success = await syncSingleRowToGoogle(consolidatedLog);
-    setStatus(success
-      ? `Saved & Synced • ${r.item} (${countData.length} entries)`
-      : `Saved (Local Only) • ${r.item} (${countData.length} entries). Press Refresh to pull latest sheet data.`);
+setStatus(`Saved count • Syncing...`);
+const success = await syncSingleRowToGoogle(consolidatedLog);
+
+// 🔹 If sync works, remove from queue
+// 🔹 If fails or offline, enqueue it for later
+if (success) {
+  removeFromQueueByKey(consolidatedLog.count_id);
+  setStatus(`Saved & Synced • ${r.item} (${countData.length} entries)`);
+} else {
+  enqueueUnsent(consolidatedLog);
+  setStatus(`Saved (Local Only) • ${r.item}. Will auto-sync when online.`);
+  
+  // optional background sync trigger
+  if ('serviceWorker' in navigator && 'SyncManager' in window) {
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      await reg.sync.register('sync-logs');
+    } catch (err) {
+      console.warn('Background sync registration failed:', err);
+    }
   }
 
+}
+}
   // =============================================================
   // 13) EXPORT UTILITIES
   // =============================================================
@@ -985,6 +1007,9 @@ window.addEventListener('DOMContentLoaded', updateCreditVisibility);
   // 15) EVENT WIRING
   // =============================================================
   document.addEventListener('DOMContentLoaded', () => {
+    updateOfflineBanner();
+    drainSyncQueue();
+
     $('#backToTemplatesBtn').addEventListener('click', ()=> renderTemplates());
     $('#backToLocationsBtn').addEventListener('click', ()=> openTemplate(state.currentStore, state.currentTemplate));
 
@@ -1011,32 +1036,68 @@ window.addEventListener('DOMContentLoaded', updateCreditVisibility);
     } else { showLogin(); }
   });
 
+  // =============================================================
+  // 16) OFFLINE HANDLER
+  // =============================================================
 
+// === Sync queue (for unsent logs) ===
+const QUEUE_KEY = 'inv_unsynced_v1';
 
-
-</script>
-
-    <script>
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js')
-    .then(() => console.log('✅ Service Worker registered'))
-    .catch(err => console.error('❌ Service Worker registration failed:', err));
+function readQueue(){ try{return JSON.parse(localStorage.getItem(QUEUE_KEY)||'[]')}catch{return []} }
+function writeQueue(rows){ localStorage.setItem(QUEUE_KEY, JSON.stringify(rows||[])); }
+function enqueueUnsent(row){
+  const q = readQueue();
+  q.push(row);
+  writeQueue(q);
 }
-    // Request notification permission (optional)
-async function askNotificationPermission() {
-  const perm = await Notification.requestPermission();
-  if (perm === 'granted') {
-    new Notification('✅ Notifications enabled', {
-      body: 'You’ll get inventory alerts here.',
-      icon: 'images.png'
-    });
+function removeFromQueueByKey(count_id){
+  const q = readQueue().filter(r => String(r.count_id||'') !== String(count_id||''));
+  writeQueue(q);
+}
+async function drainSyncQueue(){
+  const queue = readQueue();
+  if (!queue.length) return;
+
+  // Try to send one by one (simpler error handling)
+  const stillUnsent = [];
+  for (const row of queue){
+    try{
+      const ok = await syncSingleRowToGoogle(row);
+      if (ok){
+        // merge into local cache/index so UI updates immediately
+        const existing = readLogs();
+        const idx = existing.findIndex(x => String(x.count_id||'').trim() === String(row.count_id||'').trim());
+        if(idx>=0) existing[idx] = row; else existing.push(row);
+        writeLogs(existing);
+        const merged = existing.concat(state.remoteLogs || []);
+        indexLogs(merged);
+      }else{
+        stillUnsent.push(row);
+      }
+    }catch{
+      stillUnsent.push(row);
+    }
+  }
+  writeQueue(stillUnsent);
+
+  // If a SW is ready and Background Sync is supported and still have items, re-register a sync
+  if (stillUnsent.length && 'serviceWorker' in navigator && 'SyncManager' in window){
+    try{
+      const reg = await navigator.serviceWorker.ready;
+      await reg.sync.register('sync-logs');
+    }catch{}
   }
 }
+if ('serviceWorker' in navigator){
+  navigator.serviceWorker.addEventListener('message', (evt) => {
+    if (evt.data && evt.data.type === 'SYNC_REQUEST'){
+      drainSyncQueue();
+    }
+  });
+}
+
+
+
 </script>
 </body>
 </html>
-
-
-
-
-
