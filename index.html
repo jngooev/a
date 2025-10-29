@@ -91,6 +91,24 @@
     input[type="number"]::-webkit-inner-spin-button{appearance:none;-webkit-appearance:none;margin:0}
   </style>
 </head>
+  <script>
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./sw.js')
+    .then(() => console.log('✅ Service Worker registered'))
+    .catch(err => console.error('❌ Service Worker registration failed:', err));
+}
+    // Request notification permission (optional)
+async function askNotificationPermission() {
+  const perm = await Notification.requestPermission();
+  if (perm === 'granted') {
+    new Notification('✅ Notifications enabled', {
+      body: 'You’ll get inventory alerts here.',
+      icon: 'icons/icon-192.png'
+    });
+  }
+}
+</script>
+
 <body>
   <header>
     <div class="wrap row">
@@ -1009,25 +1027,11 @@ window.addEventListener('DOMContentLoaded', updateCreditVisibility);
     } else { showLogin(); }
   });
 
-  // ====== PWA Registration & Notifications ======
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js')
-    .then(reg => console.log('Service Worker registered:', reg))
-    .catch(err => console.error('SW registration failed:', err));
-}
 
-// Request notification permission (optional)
-async function askNotificationPermission() {
-  const perm = await Notification.requestPermission();
-  if (perm === 'granted') {
-    new Notification('✅ Notifications enabled', {
-      body: 'You’ll get inventory alerts here.',
-      icon: 'icons/icon-192.png'
-    });
-  }
-}
+
 
 </script>
 </body>
 </html>
+
 
