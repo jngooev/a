@@ -91,23 +91,7 @@
     input[type="number"]::-webkit-inner-spin-button{appearance:none;-webkit-appearance:none;margin:0}
   </style>
 </head>
-  <script>
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js')
-    .then(() => console.log('✅ Service Worker registered'))
-    .catch(err => console.error('❌ Service Worker registration failed:', err));
-}
-    // Request notification permission (optional)
-async function askNotificationPermission() {
-  const perm = await Notification.requestPermission();
-  if (perm === 'granted') {
-    new Notification('✅ Notifications enabled', {
-      body: 'You’ll get inventory alerts here.',
-      icon: 'images.png'
-    });
-  }
-}
-</script>
+
 
 <body>
   <header>
@@ -1031,8 +1015,27 @@ window.addEventListener('DOMContentLoaded', updateCreditVisibility);
 
 
 </script>
+
+    <script>
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./sw.js')
+    .then(() => console.log('✅ Service Worker registered'))
+    .catch(err => console.error('❌ Service Worker registration failed:', err));
+}
+    // Request notification permission (optional)
+async function askNotificationPermission() {
+  const perm = await Notification.requestPermission();
+  if (perm === 'granted') {
+    new Notification('✅ Notifications enabled', {
+      body: 'You’ll get inventory alerts here.',
+      icon: 'images.png'
+    });
+  }
+}
+</script>
 </body>
 </html>
+
 
 
 
