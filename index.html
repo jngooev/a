@@ -1,5 +1,3 @@
-
-
 <!doctype html>
 <html lang="en">
 <head>
@@ -7,26 +5,27 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
   <title>Inventory Count (Mobile)</title>
 
-  <!-- PWA Manifest & Icons -->
-  <link rel="manifest" href="manifest.webmanifest">
-  <meta name="theme-color" content="#0b0e10">
-  <link rel="apple-touch-icon" href="images.png">
-
   <!-- Preconnects for faster Apps Script calls -->
   <link rel="preconnect" href="https://script.google.com">
   <link rel="preconnect" href="https://script.googleusercontent.com">
 
   <style>
-    :root{ --bg:#0b0e10; --card:#141923; --text:#f3f7fb; --muted:#8fa6bf; --border:#27364d; --accent:#42a5ff; --accent2:#22cc88; --warn:#ffb020; --danger:#ff5d5d; --radius:14px; --pad:14px; }
+    :root{
+      --bg:#0b0e10; --card:#141923; --text:#f3f7fb; --muted:#8fa6bf;
+      --border:#27364d; --accent:#42a5ff; --accent2:#22cc88; --warn:#ffb020; --danger:#ff5d5d;
+      --radius:14px; --pad:14px;
+    }
     *{box-sizing:border-box}
     html{ -webkit-text-size-adjust:100% }
     body{margin:0;background:var(--bg);color:var(--text);font:16px/1.35 system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial; touch-action: manipulation;}
+
     header{position:sticky;top:0;z-index:2;background:linear-gradient(#0b0e10,#0b0e1090);backdrop-filter:saturate(140%) blur(6px);padding:14px 16px;border-bottom:1px solid var(--border)}
     .wrap{max-width:780px;margin:0 auto;padding:0 12px}
     .section{padding:12px}
     .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
     .row-end{display:flex;gap:10px;justify-content:flex-end;margin-top:14px}
     .push{margin-left:auto}
+
     .card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius)}
     .list{display:flex;flex-direction:column}
     .item{padding:14px;border-bottom:1px solid var(--border);cursor:pointer}
@@ -34,44 +33,67 @@
     .title{font-weight:600}
     .muted{color:var(--muted)}
     .tag{font-variant-numeric:tabular-nums;color:var(--muted)}
+
     .btn{background:#111826;border:1px solid var(--border);color:var(--text);padding:10px 16px;border-radius:999px;cursor:pointer;min-height:44px}
     .btn.primary{background:var(--accent);border-color:var(--accent);color:#00131e}
     .btn.success{background:var(--accent2);border-color:var(--accent2);color:#001a10}
     .btn.warn{background:var(--warn);border-color:var(--warn);color:#2b1b00}
     .btn.danger{background:var(--danger);border-color:var(--danger);color:#2b0000}
+
     .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
     @media (min-width:520px){.grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
     .empty{padding:26px;text-align:center;color:var(--muted)}
     .pill{display:inline-block;padding:.2rem .55rem;border:1px solid var(--border);border-radius:999px;color:var(--muted);margin-right:6px}
     .pill.today{background:var(--accent2);border-color:var(--accent2);color:#001a10;font-weight:600}
-    #creditBadge{position: fixed; left: 10px; bottom: calc(env(safe-area-inset-bottom, 0px) + 12px); z-index: 120; font-size: 12px; color: var(--muted); background: rgba(20,25,35,.6); border: 1px solid var(--border); padding: 6px 10px; border-radius: 999px; backdrop-filter: blur(4px) saturate(120%); text-decoration: none; pointer-events: auto;}
+
+    #creditBadge{
+      position: fixed;
+      left: 10px;
+      bottom: calc(env(safe-area-inset-bottom, 0px) + 12px);
+      z-index: 120;
+      font-size: 12px;
+      color: var(--muted);
+      background: rgba(20,25,35,.6);
+      border: 1px solid var(--border);
+      padding: 6px 10px;
+      border-radius: 999px;
+      backdrop-filter: blur(4px) saturate(120%);
+      text-decoration: none;
+      pointer-events: auto;
+    }
     #creditBadge:hover{ filter: brightness(1.1); }
     #creditBadge:active{ transform: translateY(1px); }
+
     .backdrop{position:fixed;inset:0;background:#0009;display:none;align-items:flex-end;justify-content:center;z-index:5}
     .sheet{background:var(--card);border:1px solid var(--border);border-bottom:none;border-radius:16px 16px 0 0;width:100%;max-width:720px;padding:16px}
     label{display:block;margin:10px 0 6px}
+
     input,select,textarea,button{font-size:16px;line-height:1.35}
     input,select{width:100%;background:#0f1520;border:1px solid var(--border);color:var(--text);padding:12px 14px;border-radius:12px;min-height:46px}
     #countEntries .qtyInp{ font-size:18px; min-height:48px }
+
     #loginOverlay{position:fixed;inset:0;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;z-index:50}
     #loginCard{width:min(92vw,420px);background:var(--card);border:1px solid var(--border);border-radius:16px;padding:18px}
     #loginCard h2{margin:0 0 12px}
     #loginErr{color:#ff8a8a;min-height:18px;margin-top:6px}
+
     #loadingOverlay{position:fixed;inset:0;background:rgba(0,0,0,0.6);display:none;align-items:center;justify-content:center;z-index:99}
     .spinner{width:70px;height:70px;border:6px solid #999;border-top:6px solid var(--accent);border-radius:50%;animation:spin 1s linear infinite}
     @keyframes spin {from{transform:rotate(0)} to{transform:rotate(360deg)}}
+
     input[type="number"]{appearance:textfield;-moz-appearance:textfield;-webkit-appearance:none}
     input[type="number"]::-webkit-outer-spin-button,
     input[type="number"]::-webkit-inner-spin-button{appearance:none;-webkit-appearance:none;margin:0}
   </style>
 </head>
-
 <body>
   <header>
-    <!-- Offline banner -->
-    <div id="offlineBanner" style="display:none; position:sticky;top:56px;z-index:9;background:#2b1b00;color:#ffb020; padding:10px 12px;border-bottom:1px solid #5a3c00;text-align:center;">
-      You’re offline — new counts will be saved here and auto-synced when back online.
-    </div>
+
+<div id="offlineBanner" style="display:none;
+  position:sticky;top:56px;z-index:9;background:#2b1b00;color:#ffb020;
+  padding:10px 12px;border-bottom:1px solid #5a3c00;text-align:center;">
+  You’re offline — new counts will be saved on this device and synced automatically when you’re online.
+</div>
 
     <div class="wrap row">
       <div class="title">Inventory</div>
@@ -177,29 +199,12 @@
 
   <div id="loadingOverlay"><div class="spinner"></div></div>
 
-  <a id="creditBadge" href="https://johnnyngo.com" target="_blank">Developed and Maintained by Johnny the Analyst</a>
+  <a id="creditBadge" href="https://johnnyngo.com" target="_blank">
+    Developed and Maintained by Johnny the Analyst
+  </a>
 
 <script>
-// ============================
-// 0) PWA bootstrap (SW + Notify)
-// ============================
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('./sw.js')
-    .then(() => console.log('✅ Service Worker registered'))
-    .catch(err => console.error('❌ Service Worker registration failed:', err));
-}
-async function askNotificationPermission(){
-  try{
-    const perm = await Notification.requestPermission();
-    if (perm === 'granted'){
-      new Notification('✅ Notifications enabled', { body:'You’ll get inventory alerts here.', icon:'images.png' });
-    }
-  }catch{}
-}
-
-// ==================================
-// Show credit only when login OR tmpl
-// ==================================
+// Show credit only when login overlay visible OR template summary visible
 const credit = document.getElementById('creditBadge');
 const loginOverlay = document.getElementById('loginOverlay');
 const tmplCard = document.getElementById('tmplCard');
@@ -217,10 +222,9 @@ window.addEventListener('DOMContentLoaded', updateCreditVisibility);
   // =============================================================
   // 1) CONFIG & CONSTANTS
   // =============================================================
-  const WEB_APP_URL   = 'https://script.google.com/macros/s/AKfycbwIEXkytbbXU3grZNR2Q4AR64FaT6NQqIwLp2nKbn92xSrywn0hUpE5wFr9U3xxyzj1/exec';
-  const STORAGE_KEY   = 'inv_logs_v1';             // local cache of last-known logs for UI
-  const SESSION_KEY   = 'inv_session_v1';          // session user info
-  const QUEUE_KEY     = 'inv_sync_queue_v1';       // offline unsent rows
+  const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbwIEXkytbbXU3grZNR2Q4AR64FaT6NQqIwLp2nKbn92xSrywn0hUpE5wFr9U3xxyzj1/exec';
+  const STORAGE_KEY = 'inv_logs_v1';
+  const SESSION_KEY = 'inv_session_v1';
   const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
 
   // =============================================================
@@ -231,12 +235,14 @@ window.addEventListener('DOMContentLoaded', updateCreditVisibility);
     byStoreTmpl: new Map(),
     logsByCountId: new Map(),
     user: null,
+
     currentStore: null,
     currentTemplate: null,
     currentStorageArea: null,
     currentItem: null,
+
     uofmMap: new Map(),
-    remoteLogs: [] // last fetched raw remote logs
+    remoteLogs: [] // keep the last fetched raw remote logs
   };
 
   // =============================================================
@@ -246,28 +252,38 @@ window.addEventListener('DOMContentLoaded', updateCreditVisibility);
   function setStatus(msg){ $('#status').textContent = msg || ''; }
   function show(el){ if(el) el.style.display='flex'; }
   function hide(el){ if(el) el.style.display='none'; }
-  function showOfflineBanner(){ const el = document.getElementById('offlineBanner'); if(el) el.style.display='block'; }
-  function hideOfflineBanner(){ const el = document.getElementById('offlineBanner'); if(el) el.style.display='none'; }
-  function updateOfflineBanner(){ navigator.onLine ? hideOfflineBanner() : showOfflineBanner(); }
+
   document.addEventListener('focusin', (e) => {
     const el = e.target;
     if (el.tagName === 'INPUT' || el.tagName === 'SELECT' || el.tagName === 'TEXTAREA') {
       setTimeout(() => { el.scrollIntoView({ block: 'center', behavior: 'smooth' }); }, 120);
     }
   });
-  window.addEventListener('online',  () => { updateOfflineBanner(); drainSyncQueue(); setStatus('Back online — syncing offline counts…'); });
-  window.addEventListener('offline', () => { updateOfflineBanner(); setStatus('⚠️ You are offline. Counts will be saved locally.'); });
+  function showOfflineBanner(){ const el = document.getElementById('offlineBanner'); if(el) el.style.display = 'block'; }
+  function hideOfflineBanner(){ const el = document.getElementById('offlineBanner'); if(el) el.style.display = 'none'; }
+  function updateOfflineBanner(){ navigator.onLine ? hideOfflineBanner() : showOfflineBanner(); }
+  window.addEventListener('online',  () => { updateOfflineBanner(); drainSyncQueue(); });
+  window.addEventListener('offline', () => { updateOfflineBanner(); });
 
   // =============================================================
   // 4) DATE/TIME HELPERS
   // =============================================================
   function nowISO(){ return new Date().toISOString(); }
-  function today(tzName=tz){ const d=new Date(); return new Intl.DateTimeFormat('en-CA',{timeZone:tzName,year:'numeric',month:'2-digit',day:'2-digit'}).format(d); }
-  function normalizeDateTimeStr(s){ if(!s) return null; const d=new Date(s); return isNaN(d)?null:d.toISOString(); }
-  function isTodayISO(iso, tzName=tz){ if(!iso) return false; const d=new Date(iso); const fmt=new Intl.DateTimeFormat('en-CA',{timeZone:tzName,year:'numeric',month:'2-digit',day:'2-digit'}); return fmt.format(d)===today(tzName); }
+  function today(tzName=tz){
+    const d = new Date();
+    return new Intl.DateTimeFormat('en-CA',{timeZone:tzName,year:'numeric',month:'2-digit',day:'2-digit'}).format(d);
+  }
+  function normalizeDateTimeStr(s){
+    if(!s) return null; const d = new Date(s); return isNaN(d) ? null : d.toISOString();
+  }
+  function isTodayISO(iso, tzName = tz){
+    if(!iso) return false; const d = new Date(iso);
+    const fmt = new Intl.DateTimeFormat('en-CA', { timeZone: tzName, year:'numeric', month:'2-digit', day:'2-digit' });
+    return fmt.format(d) === today(tzName);
+  }
 
   // =============================================================
-  // 5) STORAGE & OFFLINE QUEUE HELPERS
+  // 5) STORAGE HELPERS
   // =============================================================
   function readLogs(){ try{return JSON.parse(localStorage.getItem(STORAGE_KEY)||'[]')}catch{return[]} }
   function writeLogs(rows){ localStorage.setItem(STORAGE_KEY, JSON.stringify(rows)); }
@@ -275,14 +291,44 @@ window.addEventListener('DOMContentLoaded', updateCreditVisibility);
   function readSession(){ try{return JSON.parse(sessionStorage.getItem(SESSION_KEY)||'null')}catch{return null} }
   function clearSession(){ sessionStorage.removeItem(SESSION_KEY); }
   window.addEventListener('beforeunload', ()=>{ try{ clearSession(); }catch(e){} });
-
-  // ---- Sync queue (unsent rows). De-dupe by unique key: count_id|count_on
-  function readQueue(){ try{return JSON.parse(localStorage.getItem(QUEUE_KEY)||'[]')}catch{return []} }
-  function writeQueue(rows){ localStorage.setItem(QUEUE_KEY, JSON.stringify(rows||[])); }
-  function makeKey(row){ return `${String(row.count_id||'').trim()}|${String(row.count_on||'').trim()}`; }
-  function enqueueUnique(row){ const q=readQueue(); const k=makeKey(row); if(!q.some(x=>x.__k===k)){ q.push({...row,__k:k}); writeQueue(q); } }
-  function dropFromQueue(k){ const q=readQueue().filter(x=>x.__k!==k); writeQueue(q); }
-
+  // =============================================================
+// 5b) PENDING SYNC QUEUE HELPERS
+// =============================================================
+const PENDING_KEY = 'inv_pending_v1';
+function readPendingQueue(){
+  try { return JSON.parse(localStorage.getItem(PENDING_KEY) || '[]'); } catch { return []; }
+}
+function writePendingQueue(rows){ localStorage.setItem(PENDING_KEY, JSON.stringify(rows)); }
+// Upsert by count_id (replace the same item’s last log)
+function enqueuePending(row){
+  const q = readPendingQueue();
+  const key = String(row.count_id || '').trim();
+  const i = q.findIndex(r => String(r.count_id||'').trim() === key);
+  if (i >= 0) q[i] = row; else q.push(row);
+  writePendingQueue(q);
+}
+// Drain queue: try to POST each; keep failures
+async function drainSyncQueue(){
+  if (!navigator.onLine) return;
+  const q = readPendingQueue();
+  if (!q.length) return;
+  const keep = [];
+  for (const row of q){
+    try{
+      const res = await fetch(WEB_APP_URL, {
+        method: 'POST',
+        headers: {'Content-Type':'text/plain'},
+        body: JSON.stringify({ action:'appendLogs', rows:[row] })
+      });
+      const j = await res.json();
+      if (!j.ok) keep.push(row); // keep if server rejected
+    }catch{
+      keep.push(row);            // keep if network error
+    }
+  }
+  writePendingQueue(keep);
+  if (keep.length === 0) setStatus('✅ All offline counts synced.');
+}
   // =============================================================
   // 6) UI OVERLAYS
   // =============================================================
@@ -296,7 +342,7 @@ window.addEventListener('DOMContentLoaded', updateCreditVisibility);
   // =============================================================
   function normalizeRow(r){
     const low = Object.fromEntries(Object.entries(r).map(([k,v])=>[String(k).toLowerCase().replace(/\s+/g,'_'), v]));
-    const get =( ...names )=>{ for (const k of names){ const v=low[k]; if (v!=null && String(v).trim()!=='') return String(v).trim(); } return ''; };
+    const get =( ...names )=>{ for (const k of names){ const v = low[k]; if (v!=null && String(v).trim()!=='') return String(v).trim(); } return ''; };
     return {
       store_location:   get('location','store','store_location'),
       storage_location: get('storage_location','storagearea','area'),
@@ -311,12 +357,13 @@ window.addEventListener('DOMContentLoaded', updateCreditVisibility);
       uof_m_3:          get('uof_m_3','uom_3','unit_3'),
     };
   }
+
   function normalizeUofmRow(r){
     const low = Object.fromEntries(Object.entries(r).map(([k,v])=>[String(k).toLowerCase().trim(), v]));
-    const get=(...keys)=>{ for(const k of keys){ const v=low[k]; if(v!=null && String(v).trim()!=='') return String(v).trim(); } return ''; };
-    const name=get('name','uom','uofm','unit','unit name');
-    const normalizedUofm=get('normalized_uofm','normalized uofm','normalized unit','base uom','base_uom','base_uofm');
-    const normalizedQty=get('normalized_qty','normalized qty','factor','multiplier','base_qty');
+    const get = (...keys)=>{ for(const k of keys){ const v = low[k]; if(v!=null && String(v).trim()!=='') return String(v).trim(); } return ''; };
+    const name = get('name','uom','uofm','unit','unit name');
+    const normalizedUofm = get('normalized_uofm','normalized uofm','normalized unit','base uom','base_uofm');
+    const normalizedQty  = get('normalized_qty','normalized qty','factor','multiplier','base_qty');
     return { name, normalizedUofm, normalizedQty: normalizedQty ? Number(normalizedQty) : NaN };
   }
 
@@ -332,7 +379,9 @@ window.addEventListener('DOMContentLoaded', updateCreditVisibility);
       if(!state.byStoreTmpl.has(key)) state.byStoreTmpl.set(key, []);
       state.byStoreTmpl.get(key).push(r);
     }
-    for (const arr of state.byStoreTmpl.values()) arr.sort((a,b)=> String(a.item).localeCompare(String(b.item)));
+    for (const arr of state.byStoreTmpl.values()){
+      arr.sort((a,b)=> String(a.item).localeCompare(String(b.item)));
+    }
   }
   function indexLogs(logRows){
     const byKey = new Map();
@@ -341,7 +390,10 @@ window.addEventListener('DOMContentLoaded', updateCreditVisibility);
       if(!key) continue; if(!byKey.has(key)) byKey.set(key, []); byKey.get(key).push(r);
     }
     state.logsByCountId = new Map();
-    for (const [key, logs] of byKey){ logs.sort((a,b)=> String(b.count_on||'').localeCompare(String(a.count_on||''))); state.logsByCountId.set(key, logs[0]); }
+    for (const [key, logs] of byKey){
+      logs.sort((a,b)=> String(b.count_on || '').localeCompare(String(a.count_on || '')));
+      state.logsByCountId.set(key, logs[0]);
+    }
   }
 
   // =============================================================
@@ -365,6 +417,7 @@ window.addEventListener('DOMContentLoaded', updateCreditVisibility);
       setStatus(`UoM mapping loaded (${map.size})`);
     }catch(err){ console.warn('UoM load failed:', err.message); }
   }
+
   async function loadTemplateFromSheets(){
     setStatus('Loading template…'); showLoading();
     try{
@@ -394,9 +447,13 @@ window.addEventListener('DOMContentLoaded', updateCreditVisibility);
       setStatus(`Loaded ${rows.length} items across ${storeCount} location(s)`);
 
       await loadLogsFromSheets();
-    }catch(err){ console.error(err); setStatus('Load failed: '+ err.message); alert('Load failed: ' + err.message); }
-    finally{ hideLoading(); }
+    }catch(err){
+      console.error(err);
+      setStatus('Load failed: '+ err.message);
+      alert('Load failed: ' + err.message);
+    }finally{ hideLoading(); }
   }
+
   async function loadLogsFromSheets(){
     setStatus('Loading count logs…'); showLoading();
     try{
@@ -418,94 +475,127 @@ window.addEventListener('DOMContentLoaded', updateCreditVisibility);
       const allLogsToMerge = localLogs.concat(remoteLogs);
       indexLogs(allLogsToMerge);
 
-      if (state.currentStorageArea)      openLocation(state.currentStore, state.currentTemplate, state.currentStorageArea);
-      else if (state.currentTemplate)    openTemplate(state.currentStore, state.currentTemplate);
-      else                               renderTemplates();
-
+      if (state.currentStorageArea) {
+        openLocation(state.currentStore, state.currentTemplate, state.currentStorageArea);
+      } else if (state.currentTemplate) {
+        openTemplate(state.currentStore, state.currentTemplate);
+      } else {
+        renderTemplates();
+      }
       setStatus(`Logs loaded. ${remoteLogs.length} remote logs merged with local cache.`);
-    }catch(err){ console.error(err); setStatus('Template loaded. Warning: Failed to load remote logs.'); }
-    finally{ hideLoading(); }
+    }catch(err){
+      console.error(err);
+      setStatus('Template loaded. Warning: Failed to load remote logs.');
+    }finally{ hideLoading(); }
   }
 
   // =============================================================
   // 10) RENDERERS
   // =============================================================
   function renderTemplates(){
-    const tmplCard=$('#tmplCard'), locCard=$('#locCard'), itemsCard=$('#itemsCard');
-    const list=$('#tmplList'); list.innerHTML='';
-    tmplCard.style.display='block'; locCard.style.display='none'; itemsCard.style.display='none';
+    const tmplCard = $('#tmplCard');
+    const locCard = $('#locCard');
+    const itemsCard = $('#itemsCard');
+    const list = $('#tmplList'); list.innerHTML='';
+    tmplCard.style.display = 'block';
+    locCard.style.display = 'none';
+    itemsCard.style.display = 'none';
 
-    const stores = new Set(); for (const [key] of state.byStoreTmpl) stores.add(key.split('|')[0]);
+    const stores = new Set();
+    for (const [key] of state.byStoreTmpl) stores.add(key.split('|')[0]);
     const storeArr = Array.from(stores).sort();
     $('#authLoc').textContent = storeArr.length === 1 ? storeArr[0] : `${storeArr.length} locations`;
 
     if (state.byStoreTmpl.size === 0){ list.innerHTML = `<div class="empty">No templates found</div>`; return; }
 
-    const pairs=[]; for(const [key, rows] of state.byStoreTmpl){ const [store, tmpl] = key.split('|'); pairs.push({ store, tmpl, count: rows.length }); }
-    pairs.sort((a,b)=>{ const s=String(a.store).localeCompare(String(b.store)); return s!==0 ? s : String(a.tmpl).localeCompare(String(b.tmpl)); });
+    const pairs = [];
+    for(const [key, rows] of state.byStoreTmpl){
+      const [store, tmpl] = key.split('|');
+      pairs.push({ store, tmpl, count: rows.length });
+    }
+    pairs.sort((a,b)=>{ const s = String(a.store).localeCompare(String(b.store)); return s!==0 ? s : String(a.tmpl).localeCompare(String(b.tmpl)); });
 
     for(const p of pairs){
-      const btn=document.createElement('button');
-      btn.className='btn'; btn.style.width='100%';
+      const btn = document.createElement('button');
+      btn.className = 'btn';
+      btn.style.width='100%';
       btn.innerHTML = `<div class="row" style="justify-content:space-between"><span>${p.tmpl}</span><span class="tag">${p.store} • ${p.count} items</span></div>`;
-      btn.dataset.store=p.store; btn.dataset.tmpl=p.tmpl;
+      btn.dataset.store = p.store; btn.dataset.tmpl = p.tmpl;
       btn.addEventListener('click', (ev)=>{ openTemplate(ev.currentTarget.dataset.store, ev.currentTarget.dataset.tmpl); });
       list.appendChild(btn);
     }
   }
-  function openTemplate(store, tmpl){
-    state.currentStore=store; state.currentTemplate=tmpl; state.currentStorageArea=null;
-    $('#tmplCard').style.display='none'; $('#locCard').style.display='block'; $('#itemsCard').style.display='none';
-    $('#tmplNameLoc').textContent=tmpl; $('#storeNameLoc').textContent=store;
 
-    const container=$('#locList'); container.innerHTML='';
-    const rows=state.byStoreTmpl.get(`${store}|${tmpl}`) || [];
+  function openTemplate(store, tmpl){
+    state.currentStore = store; state.currentTemplate = tmpl; state.currentStorageArea = null;
+    $('#tmplCard').style.display='none'; $('#locCard').style.display='block'; $('#itemsCard').style.display='none';
+    $('#tmplNameLoc').textContent = tmpl; $('#storeNameLoc').textContent = store;
+
+    const container = $('#locList'); container.innerHTML = '';
+    const rows = state.byStoreTmpl.get(`${store}|${tmpl}`) || [];
     if(!rows.length){ container.innerHTML = `<div class="empty">No locations for this template</div>`; return; }
 
-    const byArea=new Map(); for(const r of rows){ const area=r.storage_location||'Other'; if(!byArea.has(area)) byArea.set(area,[]); byArea.get(area).push(r); }
-    const order=['Cooler','Freezer','Dry'];
-    const sortedAreas=Array.from(byArea.keys()).sort((a,b)=>{ const ia=order.indexOf(a), ib=order.indexOf(b); if(ia !== -1 && ib !== -1) return ia-ib; if(ia !== -1) return -1; if(ib !== -1) return 1; return String(a).localeCompare(String(b)); });
+    const byArea = new Map();
+    for(const r of rows){ const area = r.storage_location || 'Other'; if(!byArea.has(area)) byArea.set(area, []); byArea.get(area).push(r); }
+
+    const order = ['Cooler','Freezer','Dry'];
+    const sortedAreas = Array.from(byArea.keys()).sort((a,b)=>{
+      const ia = order.indexOf(a), ib = order.indexOf(b);
+      if(ia !== -1 && ib !== -1) return ia - ib; if(ia !== -1) return -1; if(ib !== -1) return 1; return String(a).localeCompare(String(b));
+    });
 
     for(const area of sortedAreas){
-      const areaRows=byArea.get(area); const totalItems=areaRows.length; let countedToday=0;
-      for(const r of areaRows){ const last=state.logsByCountId.get(String(r.count_id||'').trim()); if(last && isTodayISO(last.count_on)) countedToday++; }
-      const btn=document.createElement('button'); btn.className='btn'; btn.style.width='100%';
+      const areaRows = byArea.get(area);
+      const totalItems = areaRows.length;
+      let countedToday = 0;
+      for(const r of areaRows){ const last = state.logsByCountId.get(String(r.count_id || '').trim()); if(last && isTodayISO(last.count_on)) countedToday++; }
+
+      const btn = document.createElement('button');
+      btn.className='btn'; btn.style.width='100%';
       btn.innerHTML = `<div class="row" style="justify-content:space-between"><span>${area}</span><span class="tag">${totalItems} items • ${countedToday} today</span></div>`;
       btn.addEventListener('click', ()=> openLocation(store, tmpl, area));
       container.appendChild(btn);
     }
   }
-  function openLocation(store, tmpl, area){
-    state.currentStore=store; state.currentTemplate=tmpl; state.currentStorageArea=area;
-    $('#tmplCard').style.display='none'; $('#locCard').style.display='none'; $('#itemsCard').style.display='block';
-    $('#tmplName').textContent=tmpl; $('#storeName').textContent=store; $('#storageAreaName').textContent=area;
 
-    const list=$('#itemsList'); list.innerHTML='';
-    const rows=(state.byStoreTmpl.get(`${store}|${tmpl}`) || []).filter(r => (r.storage_location||'Other')===area);
+  function openLocation(store, tmpl, area){
+    state.currentStore = store; state.currentTemplate = tmpl; state.currentStorageArea = area;
+
+    $('#tmplCard').style.display='none'; $('#locCard').style.display='none'; $('#itemsCard').style.display='block';
+    $('#tmplName').textContent = tmpl; $('#storeName').textContent = store; $('#storageAreaName').textContent = area;
+
+    const list = $('#itemsList'); list.innerHTML='';
+    const rows = (state.byStoreTmpl.get(`${store}|${tmpl}`) || []).filter(r => (r.storage_location||'Other') === area);
     if(!rows.length){ list.innerHTML = `<div class="empty">No items</div>`; return; }
 
     for(const r of rows){
-      const li=document.createElement('div'); li.className='item';
-      const lastCount=state.logsByCountId.get(String(r.count_id||'').trim());
-      let lastCountHtml='';
+      const li = document.createElement('div'); li.className='item';
+      const lastCount = state.logsByCountId.get(String(r.count_id || '').trim());
+      let lastCountHtml = '';
+
       if(lastCount && lastCount.count_on){
-        const primaryQty=lastCount['quantity_1'];
-        const primaryUofm=lastCount['count_uofm_1'];
-        const todayFlag=isTodayISO(lastCount.count_on);
-        const dt=new Date(lastCount.count_on);
-        const dateDisplay=dt.toLocaleDateString();
-        const timeDisplay=dt.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
-        const dateText=todayFlag?`Today ${timeDisplay}`:`${dateDisplay} ${timeDisplay}`;
-        if (primaryUofm && (primaryQty===0 || (typeof primaryQty==='number' && !Number.isNaN(primaryQty)))){
+        const primaryQty = lastCount['quantity_1'];
+        const primaryUofm = lastCount['count_uofm_1'];
+        const todayFlag = isTodayISO(lastCount.count_on);
+        const dt = new Date(lastCount.count_on);
+        const dateDisplay = dt.toLocaleDateString();
+        const timeDisplay = dt.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+        const dateText = todayFlag ? `Today ${timeDisplay}` : `${dateDisplay} ${timeDisplay}`;
+
+        if (primaryUofm && (primaryQty === 0 || (typeof primaryQty === 'number' && !Number.isNaN(primaryQty)))){
           lastCountHtml = `<div class="row" style="gap:8px;margin-top:6px;font-size:0.9em;font-weight:400">
             <span class="pill ${todayFlag ? 'today' : ''}">${primaryQty ?? 0} ${primaryUofm}</span>
             <span class="muted">${dateText}</span>
           </div>`;
-        } else { lastCountHtml = `<div class="muted" style="margin-top:6px">${dateText}</div>`; }
-      } else { lastCountHtml = `<div class="muted" style="margin-top:6px">No previous count</div>`; }
+        } else {
+          lastCountHtml = `<div class="muted" style="margin-top:6px">${dateText}</div>`;
+        }
+      } else {
+        lastCountHtml = `<div class="muted" style="margin-top:6px">No previous count</div>`;
+      }
 
       li.innerHTML = `<div class="title">${r.item}</div>
-        <div class="muted">${r.storage_location||'—'} • ${r.store_location||'—'} • ID ${r.item_id}</div>
+        <div class="muted">${r.storage_location || '—'} • ${r.store_location || '—'} • ID ${r.item_id}</div>
         ${lastCountHtml}`;
       li.addEventListener('click', ()=> openSheet(r));
       list.appendChild(li);
@@ -516,64 +606,104 @@ window.addEventListener('DOMContentLoaded', updateCreditVisibility);
   // 11) COUNT SHEET HELPERS
   // =============================================================
   function getUofmOptionsHtml(row){
-    const units=[row.uof_m,row.uof_m_2,row.uof_m_3].filter(Boolean);
-    if(units.length===0) units.push('EA');
-    let html='<option value="" disabled selected>Select UoM</option>';
-    html += units.map(u=>`<option value="${u}">${u}</option>`).join('');
-    return html;
+    const units = [row.uof_m,row.uof_m_2,row.uof_m_3].filter(Boolean);
+    if(units.length === 0) units.push('EA');
+    let optionsHtml = '<option value="" disabled selected>Select UoM</option>';
+    optionsHtml += units.map(u => `<option value="${u}">${u}</option>`).join('');
+    return optionsHtml;
   }
   function createCountRow(row, container){
-    const optionsHtml=getUofmOptionsHtml(row);
-    const wrapper=document.createElement('div'); wrapper.className='row count-row'; wrapper.style.marginBottom='10px';
-    const qtyInput=document.createElement('input'); qtyInput.type='number'; qtyInput.min='0'; qtyInput.inputMode='decimal'; qtyInput.placeholder='0'; qtyInput.className='qtyInp'; qtyInput.style.flex='3'; qtyInput.value='';
-    const uofmSelect=document.createElement('select'); uofmSelect.className='uofmSel'; uofmSelect.style.flex='2'; uofmSelect.innerHTML=optionsHtml;
-    const removeBtn=document.createElement('button'); removeBtn.className='btn danger'; removeBtn.style.padding='10px 10px'; removeBtn.textContent='–';
-    removeBtn.onclick=()=>{ const rows=container.querySelectorAll('.count-row'); if(rows.length>1) container.removeChild(wrapper); else { qtyInput.value=''; uofmSelect.value=''; } };
-    wrapper.appendChild(qtyInput); wrapper.appendChild(uofmSelect); wrapper.appendChild(removeBtn); container.appendChild(wrapper);
+    const optionsHtml = getUofmOptionsHtml(row);
+    const wrapper = document.createElement('div'); wrapper.className = 'row count-row'; wrapper.style.marginBottom = '10px';
+
+    const qtyInput = document.createElement('input');
+    qtyInput.type = 'number'; qtyInput.min='0'; qtyInput.inputMode='decimal'; qtyInput.placeholder='0'; qtyInput.className='qtyInp'; qtyInput.style.flex='3'; qtyInput.value='';
+
+    const uofmSelect = document.createElement('select');
+    uofmSelect.className='uofmSel'; uofmSelect.style.flex='2'; uofmSelect.innerHTML = optionsHtml;
+
+    const removeBtn = document.createElement('button');
+    removeBtn.className='btn danger'; removeBtn.style.padding='10px 10px'; removeBtn.textContent='–';
+    removeBtn.onclick = () => { const rows = container.querySelectorAll('.count-row'); if(rows.length > 1) container.removeChild(wrapper); else { qtyInput.value=''; uofmSelect.value=''; } };
+
+    wrapper.appendChild(qtyInput); wrapper.appendChild(uofmSelect); wrapper.appendChild(removeBtn);
+    container.appendChild(wrapper);
   }
-  function openSheet(row){ state.currentItem=row; $('#sheetTitle').textContent=row.item; $('#sheetSub').textContent=`${row.storage_location||''} • ${row.template_id||''} • ID ${row.item_id||''}`; const c=$('#countEntries'); c.innerHTML=''; createCountRow(row,c); $('#sheet').style.display='flex'; }
+  function openSheet(row){
+    state.currentItem = row;
+    $('#sheetTitle').textContent = row.item;
+    $('#sheetSub').textContent = `${row.storage_location || ''} • ${row.template_id || ''} • ID ${row.item_id || ''}`;
+    const entriesContainer = $('#countEntries'); entriesContainer.innerHTML = '';
+    createCountRow(row, entriesContainer);
+    $('#sheet').style.display='flex';
+  }
   function closeSheet(){ $('#sheet').style.display='none'; }
 
-  // ---- Base computation (for confirm logic)
+  // Base computation (for confirm logic)
   function computeBaseTotals(countData){
-    let baseQty=0; let baseUofm='';
-    for(const {quantity,uofm} of countData){
-      const key=String(uofm||'').toLowerCase();
-      const map=state.uofmMap.get(key);
-      const factor=map?Number(map.normQty):1;
-      const normUnit=map?(map.normUofm||uofm):uofm;
-      if(!baseUofm) baseUofm=normUnit;
-      baseQty += (Number(quantity)||0) * (Number.isFinite(factor)?factor:1);
+    let baseQty = 0;
+    let baseUofm = '';
+    for(const {quantity, uofm} of countData){
+      const key = String(uofm||'').toLowerCase();
+      const map = state.uofmMap.get(key);
+      const factor = map ? Number(map.normQty) : 1;
+      const normUnit = map ? (map.normUofm || uofm) : uofm;
+      if(!baseUofm) baseUofm = normUnit;
+      baseQty += (Number(quantity)||0) * (Number.isFinite(factor) ? factor : 1);
     }
-    return { base_uofm: baseUofm || (countData[0]?.uofm || ''), base_qty: Number.isFinite(baseQty)?baseQty:0 };
+    return { base_uofm: baseUofm || (countData[0]?.uofm || ''), base_qty: Number.isFinite(baseQty) ? baseQty : 0 };
   }
+
   function formatCountData(countData){
-    const parts=[];
-    if (countData[0]?.uofm && Number.isFinite(Number(countData[0]?.quantity))) parts.push(`"${countData[0].quantity}" × ${countData[0].uofm}`);
-    if (countData[1]?.uofm && Number.isFinite(Number(countData[1]?.quantity))) parts.push(`"${countData[1].quantity}" × ${countData[1].uofm}`);
-    if (countData[2]?.uofm && Number.isFinite(Number(countData[2]?.quantity))) parts.push(`"${countData[2].quantity}" × ${countData[2].uofm}`);
+    const parts = [];
+    if (countData[0]?.uofm && Number.isFinite(Number(countData[0]?.quantity)))
+      parts.push(`"${countData[0].quantity}" × ${countData[0].uofm}`);
+    if (countData[1]?.uofm && Number.isFinite(Number(countData[1]?.quantity)))
+      parts.push(`"${countData[1].quantity}" × ${countData[1].uofm}`);
+    if (countData[2]?.uofm && Number.isFinite(Number(countData[2]?.quantity)))
+      parts.push(`"${countData[2].quantity}" × ${countData[2].uofm}`);
     return parts.join(', ');
   }
+
   function computeBaseFromLog(log){
-    const bk=Number(log.base_qty);
-    if (Number.isFinite(bk) && bk>0) return { base_qty: bk, base_uofm: log.base_uofm || '' };
-    const cd=[];
-    if (log.count_uofm_1 && log.quantity_1!=null) cd.push({ uofm: log.count_uofm_1, quantity: Number(log.quantity_1) });
-    if (log.count_uofm_2 && log.quantity_2!=null) cd.push({ uofm: log.count_uofm_2, quantity: Number(log.quantity_2) });
-    if (log.count_uofm_3 && log.quantity_3!=null) cd.push({ uofm: log.count_uofm_3, quantity: Number(log.quantity_3) });
+    const bk = Number(log.base_qty);
+    if (Number.isFinite(bk) && bk > 0) {
+      return { base_qty: bk, base_uofm: log.base_uofm || '' };
+    }
+    const cd = [];
+    if (log.count_uofm_1 && log.quantity_1 != null) cd.push({ uofm: log.count_uofm_1, quantity: Number(log.quantity_1) });
+    if (log.count_uofm_2 && log.quantity_2 != null) cd.push({ uofm: log.count_uofm_2, quantity: Number(log.quantity_2) });
+    if (log.count_uofm_3 && log.quantity_3 != null) cd.push({ uofm: log.count_uofm_3, quantity: Number(log.quantity_3) });
     return computeBaseTotals(cd);
   }
 
-  // ---- Modal confirm (accepts HTML)
+  // Promise-based modal confirm (now supports HTML)
   function confirmLargeChange(message){
     return new Promise((resolve) => {
-      const overlay=$('#confirmOverlay'); const textEl=$('#confirmText'); const okBtn=$('#confirmOkBtn'); const cancelBtn=$('#confirmCancelBtn');
-      if (typeof message==='string' && /<[^>]+>/.test(message)) textEl.innerHTML=message; else textEl.textContent=message;
-      overlay.style.display='flex';
-      const onOk=()=>{ cleanup(); resolve(true); };
-      const onCancel=()=>{ cleanup(); resolve(false); };
-      function cleanup(){ overlay.style.display='none'; okBtn.removeEventListener('click',onOk); cancelBtn.removeEventListener('click',onCancel); }
-      okBtn.addEventListener('click', onOk); cancelBtn.addEventListener('click', onCancel);
+      const overlay = document.getElementById('confirmOverlay');
+      const textEl  = document.getElementById('confirmText');
+      const okBtn   = document.getElementById('confirmOkBtn');
+      const cancelBtn = document.getElementById('confirmCancelBtn');
+
+      // If message looks like HTML, render as HTML; else plain text
+      if (typeof message === 'string' && /<[^>]+>/.test(message)) {
+        textEl.innerHTML = message;
+      } else {
+        textEl.textContent = message;
+      }
+      overlay.style.display = 'flex';
+
+      const onOk = () => { cleanup(); resolve(true); };
+      const onCancel = () => { cleanup(); resolve(false); };
+
+      function cleanup(){
+        overlay.style.display = 'none';
+        okBtn.removeEventListener('click', onOk);
+        cancelBtn.removeEventListener('click', onCancel);
+      }
+
+      okBtn.addEventListener('click', onOk);
+      cancelBtn.addEventListener('click', onCancel);
     });
   }
 
@@ -587,193 +717,316 @@ window.addEventListener('DOMContentLoaded', updateCreditVisibility);
       if(json.ok){ return true; } else { throw new Error(json.error||'Failed'); }
     }catch(err){ console.error('Single row sync failed:', err); return false; }
   }
-  // Drain queue completely. Stops early on first failure to avoid spinning.
-  async function drainSyncQueue(){
-    if (!navigator.onLine) return;
-    const snapshot = readQueue();
-    if (!snapshot.length) return;
-    for (const item of snapshot){
-      const key = item.__k || makeKey(item);
-      const ok = await syncSingleRowToGoogle(item);
-      if (ok) dropFromQueue(key); else { setStatus('Some offline counts still pending sync.'); return; }
-    }
-    setStatus('✅ All offline counts synced.');
-  }
 
   async function saveCount(){
-    const saveBtn = document.getElementById('saveBtn');
-    saveBtn.disabled = true;
-    try{
-      const r = state.currentItem; if(!r) return;
-      const entriesContainer = $('#countEntries');
-      const countRows = entriesContainer.querySelectorAll('.count-row');
+  const saveBtn = document.getElementById('saveBtn');
+  saveBtn.disabled = true;
 
-      // Collect entries
-      const countData = [];
-      for(const rowEl of countRows){
-        const val = rowEl.querySelector('.qtyInp').value;
-        const qty = val === '' ? NaN : parseFloat(val);
-        const uofm = rowEl.querySelector('.uofmSel').value;
-        if(uofm !== '' && !isNaN(qty)) countData.push({ quantity: qty, uofm });
-      }
-      if(countData.length === 0) { alert('Enter quantity & select UoM for at least one entry.'); return; }
+  try{
+    const r = state.currentItem; if(!r){ saveBtn.disabled = false; return; }
+    const entriesContainer = $('#countEntries');
+    const countRows = entriesContainer.querySelectorAll('.count-row');
 
-      // Base computation
-      const { base_uofm, base_qty } = computeBaseTotals(countData);
-
-      // Compare vs last count — show pretty HTML confirm if >= 2x
-      let lastBaseQty=null, lastLog=null; const last=state.logsByCountId.get(String(r.count_id||'').trim());
-      if (last){ lastLog=last; const derived=computeBaseFromLog(last); if (Number.isFinite(derived.base_qty)) lastBaseQty=derived.base_qty; }
-      if (Number.isFinite(base_qty) && lastBaseQty!=null && lastBaseQty>0 && base_qty>=2*lastBaseQty){
-        const dt = lastLog?.count_on ? new Date(lastLog.count_on) : null;
-        const when = dt ? `${dt.toLocaleDateString()} ${dt.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}` : '(no time)';
-        const H=(q,u)=>`<b style="color:#42a5ff">${q}</b> <b style="color:#ffb020">${u}</b>`;
-        const enteredHTML = countData.filter(e=>e.uofm && Number.isFinite(e.quantity)).map(e=>H(e.quantity,e.uofm)).join(', ');
-        const triples=[ {u:lastLog?.count_uofm_1,q:lastLog?.quantity_1},{u:lastLog?.count_uofm_2,q:lastLog?.quantity_2},{u:lastLog?.count_uofm_3,q:lastLog?.quantity_3} ]
-          .filter(t=>t.u && (t.q===0 || (typeof t.q==='number' && !Number.isNaN(t.q))));
-        const lastHTML = triples.map(t=>H(t.q,t.u)).join(', ');
-        const msg = `
-          <div>You entered: ${enteredHTML || '(no entries)'}</div>
-          <div style="margin-top:8px;color:#aaa">This seems high compared to the last count.</div>
-          <div style="margin-top:12px">Last count: ${lastHTML || '(none)'} on <span style="color:#8fa6bf">${when}</span></div>
-          <div style="margin-top:16px;font-weight:500">Please confirm to continue.</div>`;
-        const ok = await confirmLargeChange(msg); if(!ok) return;
-      }
-
-      // Consolidated row (single record per save)
-      const consolidatedLog = {
-        count_id: r.count_id,
-        count_on: nowISO(),
-        storage_location: r.storage_location,
-        location_id: r.location_id,
-        template_id: r.template_id,
-        item_id: r.item_id,
-        item: r.item,
-        count_uofm_1: countData[0]?.uofm || '', quantity_1: countData[0]?.quantity ?? null,
-        count_uofm_2: countData[1]?.uofm || '', quantity_2: countData[1]?.quantity ?? null,
-        count_uofm_3: countData[2]?.uofm || '', quantity_3: countData[2]?.quantity ?? null,
-        base_uofm: base_uofm || '', base_qty: base_qty
-      };
-
-      // Upsert local cache (for UI)
-      const logKey=String(r.count_id||'').trim();
-      const existing=readLogs();
-      const idx=existing.findIndex(x=>String(x.count_id||'').trim()===logKey);
-      if(idx>=0) existing[idx]=consolidatedLog; else existing.push(consolidatedLog);
-      writeLogs(existing);
-      indexLogs(existing.concat(state.remoteLogs||[]));
-
-      // Close sheet & refresh list immediately
-      closeSheet();
-      openLocation(state.currentStore, state.currentTemplate, state.currentStorageArea);
-
-      // Enqueue for sync (de‑duped by count_id|count_on)
-      enqueueUnique(consolidatedLog);
-
-      // Try sync now if online
-      if(navigator.onLine){ setStatus('Saved • syncing…'); await drainSyncQueue(); }
-      else { setStatus('Saved locally (offline) — will sync automatically when back online.'); }
-
-    } finally {
-      // Always re-enable button even if we early-return above
-      const saveBtn = document.getElementById('saveBtn');
-      if (saveBtn) saveBtn.disabled = false;
+    // Gather valid entries
+    const countData = [];
+    for(const rowEl of countRows){
+      const val = rowEl.querySelector('.qtyInp').value;
+      const qty = val === '' ? NaN : parseFloat(val);
+      const uofm = rowEl.querySelector('.uofmSel').value;
+      if(uofm !== '' && !isNaN(qty)) countData.push({ quantity: qty, uofm });
     }
+    if(countData.length === 0) { alert('Enter quantity & select UoM for at least one entry.'); return; }
+
+    // Base calc
+    const { base_uofm, base_qty } = computeBaseTotals(countData);
+
+    // (Optional) large change confirm — unchanged from your version
+    let lastBaseQty = null; let lastLog = null;
+    const last = state.logsByCountId.get(String(r.count_id || '').trim());
+    if (last) {
+      lastLog = last;
+      const derived = computeBaseFromLog(last);
+      if (Number.isFinite(derived.base_qty)) lastBaseQty = derived.base_qty;
+    }
+    if (Number.isFinite(base_qty) && lastBaseQty != null && lastBaseQty > 0 && base_qty >= 2 * lastBaseQty){
+      const dt = lastLog?.count_on ? new Date(lastLog.count_on) : null;
+      const when = dt ? `${dt.toLocaleDateString()} ${dt.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}` : '(no time)';
+      const highlight = (q,u) => `<b style="color:#42a5ff">${q}</b> <b style="color:#ffb020">${u}</b>`;
+      const enteredHTML = countData.filter(e => e.uofm && Number.isFinite(e.quantity)).map(e => highlight(e.quantity,e.uofm)).join(', ');
+      const triples = [
+        { u: lastLog?.count_uofm_1, q: lastLog?.quantity_1 },
+        { u: lastLog?.count_uofm_2, q: lastLog?.quantity_2 },
+        { u: lastLog?.count_uofm_3, q: lastLog?.quantity_3 },
+      ].filter(t => t.u && (t.q === 0 || (typeof t.q === 'number' && !Number.isNaN(t.q))));
+      const lastHTML = triples.map(t => highlight(t.q, t.u)).join(', ');
+      const msg = `
+        <div>You entered: ${enteredHTML || '(no entries)'}</div>
+        <div style="margin-top:8px;color:#aaa">This seems high compared to the last count.</div>
+        <div style="margin-top:12px">Last count: ${lastHTML || '(none)'} on <span style="color:#8fa6bf">${when}</span></div>
+        <div style="margin-top:16px;font-weight:500">Please confirm to continue.</div>
+      `;
+      const ok = await confirmLargeChange(msg);
+      if (!ok) return;
+    }
+
+    // Build the consolidated row
+    const consolidatedLog = {
+      count_id: r.count_id,
+      count_on: nowISO(),
+      storage_location: r.storage_location,
+      location_id: r.location_id,
+      template_id: r.template_id,
+      item_id: r.item_id,
+      item: r.item,
+      count_uofm_1: countData[0]?.uofm || '',
+      quantity_1:  countData[0]?.quantity ?? null,
+      count_uofm_2: countData[1]?.uofm || '',
+      quantity_2:  countData[1]?.quantity ?? null,
+      count_uofm_3: countData[2]?.uofm || '',
+      quantity_3:  countData[2]?.quantity ?? null,
+      base_uofm: base_uofm || '',
+      base_qty:  base_qty
+    };
+
+    // 1) Always upsert local cache first (so offline is instant)
+    const logKey = String(r.count_id || '').trim();
+    const existing = readLogs();
+    const i = existing.findIndex(x => String(x.count_id || '').trim() === logKey);
+    if (i >= 0) existing[i] = consolidatedLog; else existing.push(consolidatedLog);
+    writeLogs(existing);
+
+    // 2) Update in-memory index & UI immediately
+    const merged = existing.concat(state.remoteLogs || []);
+    indexLogs(merged);
+    closeSheet();
+    openLocation(state.currentStore, state.currentTemplate, state.currentStorageArea);
+
+    // 3) Network: try live sync; if offline or failed, enqueue
+    if (!navigator.onLine){
+      enqueuePending(consolidatedLog);
+      setStatus('Saved locally (offline). Will sync when online.');
+      return;
+    }
+
+    try{
+      const ok = await syncSingleRowToGoogle(consolidatedLog);
+      if (!ok) throw new Error('server rejected');
+      setStatus(`Saved & Synced • ${r.item} (${countData.length} entries)`);
+    }catch(e){
+      enqueuePending(consolidatedLog);
+      setStatus(`Saved locally (sync failed). Will retry automatically.`);
+    }
+  } finally {
+    saveBtn.disabled = false;
+  }
+}
+
+  // =============================================================
+  // 13) EXPORT UTILITIES
+  // =============================================================
+  function norm(s){ return String(s || '').trim().toLowerCase(); }
+  function localDateKey(iso, tzName = tz){
+    if (!iso) return '';
+    const d = new Date(iso);
+    if (isNaN(d)) return '';
+    return new Intl.DateTimeFormat('en-CA', { timeZone: tzName, year:'numeric', month:'2-digit', day:'2-digit' }).format(d);
   }
 
-  // =============================================================
-  // 13) EXPORT UTILITIES (duplicate UoMs suppressed)
-  // =============================================================
-  function norm(s){ return String(s||'').trim().toLowerCase(); }
-  function localDateKey(iso, tzName=tz){ if(!iso) return ''; const d=new Date(iso); if(isNaN(d)) return ''; return new Intl.DateTimeFormat('en-CA',{timeZone:tzName,year:'numeric',month:'2-digit',day:'2-digit'}).format(d); }
-  function buildDailyLatestRowByItem(logs, dateStr){ const map=new Map(); for(const log of logs){ const iso=normalizeDateTimeStr(log.count_on); if(!iso) continue; if(localDateKey(iso,tz)!==dateStr) continue; const nameKey=norm(log.item); if(!nameKey) continue; const t=new Date(iso).getTime(); const prev=map.get(nameKey); if(!prev || t>prev._t) map.set(nameKey,{...log,_t:t}); } return map; }
-  function qtyFromLogByUofm(log, uofm){ if(!log||!uofm) return ''; const target=norm(uofm); for(let i=1;i<=3;i++){ const U=norm(log[`count_uofm_${i}`]||''); if(U && U===target){ const q=Number(log[`quantity_${i}`]); return Number.isFinite(q)?q:''; } } return ''; }
-  function toCSV(rows){ if(!rows.length) return ''; const headers=Object.keys(rows[0]); const esc=s=>{ const t=String(s??'').replace(/"/g,'""'); return /[",\n]/.test(t)?`"${t}"`:t; }; return [headers.join(',')].concat(rows.map(r=>headers.map(h=>esc(r[h])).join(','))).join('\n'); }
-  function download(name, text){ const blob=new Blob([text],{type:'text/csv'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name; document.body.appendChild(a); a.click(); a.remove(); }
+  // Latest full row by item for a date
+  function buildDailyLatestRowByItem(logs, dateStr){
+    const map = new Map();
+    for (const log of logs){
+      const iso = normalizeDateTimeStr(log.count_on);
+      if (!iso) continue;
+      if (localDateKey(iso, tz) !== dateStr) continue;
 
+      const nameKey = norm(log.item);
+      if (!nameKey) continue;
+
+      const t = new Date(iso).getTime();
+      const prev = map.get(nameKey);
+      if (!prev || t > prev._t){
+        map.set(nameKey, { ...log, _t: t });
+      }
+    }
+    return map;
+  }
+
+  // Get qty for a UoM only from that single latest row
+  function qtyFromLogByUofm(log, uofm){
+    if (!log || !uofm) return '';
+    const target = norm(uofm);
+    for (let i = 1; i <= 3; i++){
+      const U = norm(log[`count_uofm_${i}`] || '');
+      if (U && U === target){
+        const q = Number(log[`quantity_${i}`]);
+        return Number.isFinite(q) ? q : '';
+      }
+    }
+    return '';
+  }
+
+  function toCSV(rows){
+    if(!rows.length) return '';
+    const headers = Object.keys(rows[0]);
+    const esc = s => { const t = String(s??'').replace(/"/g,'""'); return /[",\n]/.test(t) ? `"${t}"` : t; };
+    return [headers.join(',')].concat(rows.map(r=>headers.map(h=>esc(r[h])).join(','))).join('\n');
+  }
+  function download(name, text){
+    const blob = new Blob([text],{type:'text/csv'});
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+  }
+
+  // Open/close export modal and populate template dropdown
   function openExportModal(){
-    $('#exportDate').value=today();
-    const sel=$('#exportStoreTemplate'); sel.innerHTML='';
-    const opts=[]; for (const [key] of state.byStoreTmpl){ const [store,tmpl]=key.split('|'); opts.push({key,store,tmpl}); }
+    $('#exportDate').value = today();
+
+    const sel = $('#exportStoreTemplate');
+    sel.innerHTML = '';
+    const opts = [];
+    for (const [key] of state.byStoreTmpl){
+      const [store, tmpl] = key.split('|');
+      opts.push({ key, store, tmpl });
+    }
     opts.sort((a,b)=> (a.store.localeCompare(b.store) || a.tmpl.localeCompare(b.tmpl)) );
-    for(const o of opts){ const el=document.createElement('option'); el.value=o.key; el.textContent=`${o.store} • ${o.tmpl}`; if (state.currentStore && state.currentTemplate && `${state.currentStore}|${state.currentTemplate}`===o.key) el.selected=true; sel.appendChild(el); }
-    $('#exportOverlay').style.display='flex';
+
+    for (const o of opts){
+      const el = document.createElement('option');
+      el.value = o.key; el.textContent = `${o.store} • ${o.tmpl}`;
+      if (state.currentStore && state.currentTemplate && `${state.currentStore}|${state.currentTemplate}` === o.key) el.selected = true;
+      sel.appendChild(el);
+    }
+
+    $('#exportOverlay').style.display = 'flex';
   }
-  function closeExportModal(){ $('#exportOverlay').style.display='none'; }
+  function closeExportModal(){ $('#exportOverlay').style.display = 'none'; }
 
   async function runExport(){
-    const dateStr=($('#exportDate').value||'').trim();
-    const key=$('#exportStoreTemplate').value;
-    if(!dateStr){ alert('Enter a date (YYYY-MM-DD)'); return; }
-    if(!key){ alert('Choose Store • Template'); return; }
-    const rows=state.byStoreTmpl.get(key) || [];
-    if(!rows.length){ alert('No items under selected Store • Template'); return; }
+    const dateStr = ($('#exportDate').value || '').trim();
+    const key = $('#exportStoreTemplate').value;
+    if (!dateStr) { alert('Enter a date (YYYY-MM-DD)'); return; }
+    if (!key) { alert('Choose Store • Template'); return; }
 
-    showLoading();
+    const rows = state.byStoreTmpl.get(key) || [];
+    if (!rows.length){ alert('No items under selected Store • Template'); return; }
+
+    showLoading(); // spinner ON
     try{
-      // Fresh logs
-      let logs=[]; try{ const res=await fetch(`${WEB_APP_URL}?mode=logs&nocache=${Date.now()}`); const json=await res.json(); if(json.ok && Array.isArray(json.data)){ logs=json.data.map(r=>({...r, count_on:normalizeDateTimeStr(r.count_on), quantity_1:r.quantity_1===''||r.quantity_1==null?null:parseFloat(r.quantity_1), quantity_2:r.quantity_2===''||r.quantity_2==null?null:parseFloat(r.quantity_2), quantity_3:r.quantity_3===''||r.quantity_3==null?null:parseFloat(r.quantity_3)})); } }catch{ alert('Failed to load logs for export.'); return; }
-
-      // Optional itemdetail lookup
-      const itemDetailMap=new Map();
+      // Pull fresh logs for the export moment
+      let logs = [];
       try{
-        const r2=await fetch(`${WEB_APP_URL}?mode=itemdetail&nocache=${Date.now()}`); const j2=await r2.json();
-        if(j2.ok && Array.isArray(j2.data)){
-          for(const rec of j2.data){
-            const low=Object.fromEntries(Object.entries(rec).map(([k,v])=>[String(k).toLowerCase().trim(), v]));
-            const nameKey=norm(low.name || low.itemname);
-            if(!nameKey) continue;
-            itemDetailMap.set(nameKey, { U1: low.inventoryuofm || '', U2: low.countuofm2 || '', U3: low.countuofm3 || '' });
+        const res = await fetch(`${WEB_APP_URL}?mode=logs&nocache=${Date.now()}`);
+        const json = await res.json();
+        if (json.ok && Array.isArray(json.data)){
+          logs = json.data.map(r => ({
+            ...r,
+            count_on:  normalizeDateTimeStr(r.count_on),
+            quantity_1: r.quantity_1 === '' || r.quantity_1 == null ? null : parseFloat(r.quantity_1),
+            quantity_2: r.quantity_2 === '' || r.quantity_2 == null ? null : parseFloat(r.quantity_2),
+            quantity_3: r.quantity_3 === '' || r.quantity_3 == null ? null : parseFloat(r.quantity_3),
+          }));
+        }
+      }catch(e){ alert('Failed to load logs for export.'); return; }
+
+      // itemdetail lookup (optional). If unavailable, fallback to template UoMs
+      const itemDetailMap = new Map(); // name -> {U1,U2,U3}
+      try{
+        const r2 = await fetch(`${WEB_APP_URL}?mode=itemdetail&nocache=${Date.now()}`);
+        const j2 = await r2.json();
+        if (j2.ok && Array.isArray(j2.data)){
+          for (const rec of j2.data){
+            const low = Object.fromEntries(Object.entries(rec).map(([k,v])=>[String(k).toLowerCase().trim(), v]));
+            const nameKey = norm(low.name || low.itemname);
+            if (!nameKey) continue;
+            itemDetailMap.set(nameKey, {
+              U1: low.inventoryuofm || '',
+              U2: low.countuofm2 || '',
+              U3: low.countuofm3 || '',
+            });
           }
         }
-      }catch{}
+      }catch(e){ /* ignore, fallback */ }
 
-      const latestByItem=buildDailyLatestRowByItem(logs, dateStr);
-      const out=[];
-      for(const r of rows){
-        const nameKey=norm(r.item);
-        const det=itemDetailMap.get(nameKey)||{};
-        const U1raw=det.U1 || r.uof_m || '';
-        const U2raw=det.U2 || r.uof_m_2 || '';
-        const U3raw=det.U3 || r.uof_m_3 || '';
-        // suppress duplicates (e.g., Case/Case/Case)
-        const U1=U1raw || '';
-        const U2=(!U2raw || norm(U2raw)===norm(U1)) ? '' : U2raw;
-        const U3=(!U3raw || norm(U3raw)===norm(U1) || norm(U3raw)===norm(U2raw)) ? '' : U3raw;
-        const latest=latestByItem.get(nameKey);
-        const q1=U1?qtyFromLogByUofm(latest,U1):'';
-        const q2=U2?qtyFromLogByUofm(latest,U2):'';
-        const q3=U3?qtyFromLogByUofm(latest,U3):'';
-        out.push({ StorageLocation:r.storage_location||'', Item:r.item||'', UofM:U1, Qty:q1, UofM2:U2, Qty2:q2, UofM3:U3, Qty3:q3 });
+      // Build latest full row by item
+      const latestRowByItem = buildDailyLatestRowByItem(logs, dateStr);
+
+      // Compose export rows; suppress duplicate UoMs (fill first only)
+      const out = [];
+      for (const r of rows){
+        const nameKey = norm(r.item);
+        const det = itemDetailMap.get(nameKey) || {};
+        const U1raw = det.U1 || r.uof_m || '';
+        const U2raw = det.U2 || r.uof_m_2 || '';
+        const U3raw = det.U3 || r.uof_m_3 || '';
+
+        // normalize for duplicate detection
+        const seen = new Set();
+        const U1 = U1raw || '';
+        const U2 = (!U2raw || norm(U2raw) === norm(U1)) ? '' : U2raw;
+        const U3 = (!U3raw || norm(U3raw) === norm(U1) || norm(U3raw) === norm(U2raw)) ? '' : U3raw;
+
+        const latest = latestRowByItem.get(nameKey);
+        const q1 = U1 ? qtyFromLogByUofm(latest, U1) : '';
+        const q2 = U2 ? qtyFromLogByUofm(latest, U2) : '';
+        const q3 = U3 ? qtyFromLogByUofm(latest, U3) : '';
+
+        out.push({
+          StorageLocation: r.storage_location || '',
+          Item: r.item || '',
+          UofM: U1,  Qty:  q1,
+          UofM2: U2,  Qty2: q2,
+          UofM3: U3,  Qty3: q3,
+        });
       }
-      if(!out.length){ alert('Nothing to export.'); return; }
-      const csv=toCSV(out);
+
+      if (!out.length){ alert('Nothing to export.'); return; }
+      const csv = toCSV(out);
       download(`count_export_${key.replace('|','__')}_${dateStr}.csv`, csv);
+
+      // Close modal and return view
       closeExportModal();
-    } finally { hideLoading(); }
+    } finally {
+      hideLoading(); // spinner OFF even if error
+    }
   }
 
   // =============================================================
   // 14) AUTH
   // =============================================================
   async function handleLogin(){
-    const u=$('#loginUser').value.trim();
-    const p=$('#loginPass').value; const err=$('#loginErr'); err.textContent='';
-    if(!u || !p){ err.textContent='Enter username and password.'; return; }
+    const u = $('#loginUser').value.trim();
+    const p = $('#loginPass').value;
+    const err = $('#loginErr'); err.textContent = '';
+    if(!u || !p){ err.textContent = 'Enter username and password.'; return; }
+
     setStatus('Signing in…'); showLoading();
     try{
-      const url=`${WEB_APP_URL}?mode=auth&u=${encodeURIComponent(u)}&p=${encodeURIComponent(p)}&nocache=${Date.now()}`;
-      const res=await fetch(url, { method:'GET' }); if(!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json=await res.json(); if(!json.ok){ err.textContent=json.error||'Invalid username or password.'; return; }
-      const locations=Array.isArray(json.user.locations)?json.user.locations:[];
-      state.user={ username:u, locations };
-      saveSession(state.user); hideLogin(); indexLogs(readLogs());
+      const url = `${WEB_APP_URL}?mode=auth&u=${encodeURIComponent(u)}&p=${encodeURIComponent(p)}&nocache=${Date.now()}`;
+      const res = await fetch(url, { method:'GET' });
+      if(!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = await res.json();
+
+      if(!json.ok){ err.textContent = json.error || 'Invalid username or password.'; return; }
+
+      const locations = Array.isArray(json.user.locations) ? json.user.locations : [];
+      state.user = { username: u, locations };
+      saveSession(state.user);
+      hideLogin();
+      indexLogs(readLogs());
+
       setStatus(`Signed in as ${state.user.username}${locations.includes('ALL') ? ' • admin' : ''}`);
       await loadTemplateFromSheets();
-    }catch(e){ console.error(e); err.textContent='Sign-in failed. Try again.'; }
+    }catch(e){ console.error(e); err.textContent = 'Sign-in failed. Try again.'; }
     finally{ hideLoading(); }
   }
-  function signOut(){ clearSession(); state.user=null; state.template=[]; state.byStoreTmpl=new Map(); state.logsByCountId=new Map(); state.currentStore=null; state.currentTemplate=null; state.currentStorageArea=null; $('#tmplCard').style.display='none'; $('#locCard').style.display='none'; $('#itemsCard').style.display='none'; showLogin(); setStatus('Signed out'); }
+
+  function signOut(){
+    clearSession(); state.user = null; state.template = []; state.byStoreTmpl = new Map(); state.logsByCountId = new Map();
+    state.currentStore = null; state.currentTemplate = null; state.currentStorageArea = null;
+    $('#tmplCard').style.display='none'; $('#locCard').style.display='none'; $('#itemsCard').style.display='none';
+    showLogin(); setStatus('Signed out');
+  }
 
   // =============================================================
   // 15) EVENT WIRING
@@ -781,13 +1034,23 @@ window.addEventListener('DOMContentLoaded', updateCreditVisibility);
   document.addEventListener('DOMContentLoaded', () => {
     updateOfflineBanner();
     drainSyncQueue();
+    window.addEventListener('online', () => {
+    setStatus('Back online — syncing offline counts…');
+    drainSyncQueue();
+  });
 
+  window.addEventListener('offline', () => {
+    setStatus('⚠️ You are offline. Counts will be saved locally.');
+    updateOfflineBanner();
+  });
+
+  $('#backToTemplatesBtn').addEventListener('click', ()=> renderTemplates());
     $('#backToTemplatesBtn').addEventListener('click', ()=> renderTemplates());
     $('#backToLocationsBtn').addEventListener('click', ()=> openTemplate(state.currentStore, state.currentTemplate));
 
     $('#cancelBtn').addEventListener('click', closeSheet);
     $('#saveBtn').addEventListener('click', saveCount);
-    $('#addCountBtn').addEventListener('click', ()=>{ if(state.currentItem) createCountRow(state.currentItem, $('#countEntries')); });
+    $('#addCountBtn').addEventListener('click', () => { if(state.currentItem) createCountRow(state.currentItem, $('#countEntries')); });
 
     $('#exportBtn').addEventListener('click', openExportModal);
     $('#exportCancelBtn').addEventListener('click', closeExportModal);
@@ -800,25 +1063,76 @@ window.addEventListener('DOMContentLoaded', updateCreditVisibility);
     $('#loginBtn').addEventListener('click', handleLogin);
     $('#loginPass').addEventListener('keydown', (e)=>{ if(e.key==='Enter') handleLogin(); });
 
-    const sess=readSession();
+    const sess = readSession();
     if(sess && sess.username && Array.isArray(sess.locations)){
-      state.user=sess; hideLogin(); indexLogs(readLogs());
+      state.user = sess; hideLogin(); indexLogs(readLogs());
       setStatus(`Signed in as ${state.user.username}${state.user.locations.includes('ALL') ? ' • admin' : ''}`);
       loadTemplateFromSheets();
     } else { showLogin(); }
-
-    // Optional: prompt for notifications on first load (comment out if not wanted)
-    // askNotificationPermission();
   });
 
-  // Listen for SW background sync request (optional)
-  if ('serviceWorker' in navigator){
-    navigator.serviceWorker.addEventListener('message', (evt) => {
-      if (evt.data && evt.data.type === 'SYNC_REQUEST') drainSyncQueue();
-    });
+  // =============================================================
+  // 16) OFFLINE HANDLER
+  // =============================================================
+
+// === Sync queue (for unsent logs) ===
+const QUEUE_KEY = 'inv_unsynced_v1';
+
+function readQueue(){ try{return JSON.parse(localStorage.getItem(QUEUE_KEY)||'[]')}catch{return []} }
+function writeQueue(rows){ localStorage.setItem(QUEUE_KEY, JSON.stringify(rows||[])); }
+function enqueueUnsent(row){
+  const q = readQueue();
+  q.push(row);
+  writeQueue(q);
+}
+function removeFromQueueByKey(count_id){
+  const q = readQueue().filter(r => String(r.count_id||'') !== String(count_id||''));
+  writeQueue(q);
+}
+async function drainSyncQueue(){
+  const queue = readQueue();
+  if (!queue.length) return;
+
+  // Try to send one by one (simpler error handling)
+  const stillUnsent = [];
+  for (const row of queue){
+    try{
+      const ok = await syncSingleRowToGoogle(row);
+      if (ok){
+        // merge into local cache/index so UI updates immediately
+        const existing = readLogs();
+        const idx = existing.findIndex(x => String(x.count_id||'').trim() === String(row.count_id||'').trim());
+        if(idx>=0) existing[idx] = row; else existing.push(row);
+        writeLogs(existing);
+        const merged = existing.concat(state.remoteLogs || []);
+        indexLogs(merged);
+      }else{
+        stillUnsent.push(row);
+      }
+    }catch{
+      stillUnsent.push(row);
+    }
   }
+  writeQueue(stillUnsent);
+
+  // If a SW is ready and Background Sync is supported and still have items, re-register a sync
+  if (stillUnsent.length && 'serviceWorker' in navigator && 'SyncManager' in window){
+    try{
+      const reg = await navigator.serviceWorker.ready;
+      await reg.sync.register('sync-logs');
+    }catch{}
+  }
+}
+if ('serviceWorker' in navigator){
+  navigator.serviceWorker.addEventListener('message', (evt) => {
+    if (evt.data && evt.data.type === 'SYNC_REQUEST'){
+      drainSyncQueue();
+    }
+  });
+}
+
+
+
 </script>
 </body>
 </html>
-
-
