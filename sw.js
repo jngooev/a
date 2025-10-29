@@ -1,21 +1,18 @@
-<!-- =========================
-  Save this as sw.js next to index.html
-========================= -->
-<!--
 // sw.js
 const CACHE = 'invcount-v5';
 const ASSETS = [
   '/', '/index.html',
-  '/sw.js',
   '/manifest.webmanifest',
   '/images.png'
 ];
 
+// Install
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)));
   self.skipWaiting();
 });
 
+// Activate: clean old caches
 self.addEventListener('activate', (e) => {
   e.waitUntil(
     caches.keys().then(keys =>
@@ -25,49 +22,47 @@ self.addEventListener('activate', (e) => {
   self.clients.claim();
 });
 
-// Cache only same-origin GET. Let cross-origin & non-GET go to network.
+// Helper: chỉ cache same-origin static; bỏ qua cross-origin & OPTIONS
 self.addEventListener('fetch', (e) => {
   const req = e.request;
+
+  // 1) Đừng intercept preflight
+  if (req.method === 'OPTIONS') return;
+
   const url = new URL(req.url);
+  const sameOrigin = url.origin === self.location.origin;
 
-  // 1) Ignore non-GET (POST to Apps Script must hit network)
-  if (req.method !== 'GET') return;
+  // 2) Bỏ qua mọi cross-origin (ví dụ: script.google.com ...)
+  if (!sameOrigin) return;
 
-  // 2) Only handle same-origin (static app files). Cross-origin → network
-  if (url.origin !== self.location.origin) return;
+  // 3) Điều kiện cache-first cho các asset tĩnh cùng origin
+  const isStatic = ASSETS.includes(url.pathname);
 
-  // 3) Navigation: cache-first fallback
-  if (req.mode === 'navigate'){
+  if (req.mode === 'navigate' || isStatic) {
     e.respondWith(
-      caches.match('/index.html').then(r => r || fetch(req))
+      caches.match(req).then(hit => hit || fetch(req).then(res => {
+        if (isStatic && res && res.status === 200) {
+          const clone = res.clone();
+          caches.open(CACHE).then(c => c.put(req, clone));
+        }
+        return res;
+      }).catch(() => caches.match('/index.html')))
     );
     return;
   }
 
-  // 4) Static assets cache-first
-  const isStatic = ASSETS.some(p => url.pathname === p);
-  if (isStatic){
-    e.respondWith(caches.match(req).then(r => r || fetch(req)));
-    return;
-  }
-
-  // 5) Default: network-first with cache fallback
+  // 4) Mặc định: network-first, fallback cache
   e.respondWith(
-    fetch(req).then(r => {
-      const copy = r.clone();
-      caches.open(CACHE).then(c => c.put(req, copy));
-      return r;
-    }).catch(() => caches.match(req))
+    fetch(req).catch(() => caches.match(req))
   );
 });
 
-// Background Sync: notify clients to drain their queues
+// Background Sync: nhắc các client tự sync
 self.addEventListener('sync', (event) => {
   if (event.tag === 'sync-logs'){
     event.waitUntil(
       self.clients.matchAll({ includeUncontrolled: true, type: 'window' })
-        .then(clients => { for (const client of clients){ client.postMessage({ type: 'SYNC_REQUEST' }); } })
+        .then(clients => { clients.forEach(c => c.postMessage({ type: 'SYNC_REQUEST' })); })
     );
   }
 });
--->
