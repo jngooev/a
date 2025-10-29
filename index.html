@@ -1,8 +1,4 @@
-<!-- =========================
-  Inventory Count (Mobile)
-  Clean rewrite with single sync queue, guarded init, and SW-safe fetch
-  Save this as index.html
-========================== -->
+
 <!doctype html>
 <html lang="en">
 <head>
@@ -580,7 +576,7 @@ async function syncSingleRowToGoogle(row){
   try{
     const cleanRow = sanitizeRowForPost(row);
     const res = await fetch(WEB_APP_URL, {
-      method: 'POST',
+      method: 'doPost',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'appendLogs', rows: [cleanRow] }),
       signal: controller.signal
@@ -859,5 +855,6 @@ function enqueueUnique(row){
 </script>
 </body>
 </html>
+
 
 
