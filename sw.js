@@ -3,7 +3,7 @@ const CACHE = 'invcount-v4';
 const ASSETS = [
   '/', '/index.html',
   '/manifest.webmanifest',
-  '/icons/icon-192.png', '/icons/icon-512.png'
+  'images.png'
   // add other static assets here as needed
 ];
 
