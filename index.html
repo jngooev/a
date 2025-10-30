@@ -570,23 +570,20 @@ function sanitizeRowForPost(row){
 
 async function syncSingleRowToGoogle(row){
   try{
+    // Do NOT set Content-Type yourself; let the browser set form-encoded
     const form = new URLSearchParams();
     form.set('action', 'appendLogs');
     form.set('rows', JSON.stringify([row]));
 
-    // KHÔNG headers -> browser tự dùng application/x-www-form-urlencoded
-    const res = await fetch(WEB_APP_URL, { method: 'POST', body: form });
-
-    if (!res.ok){
-      console.error('Server non-OK:', res.status, await res.text().catch(()=>'(no body)'));
-      return false;
-    }
-    const json = await res.json().catch(async ()=>{
-      const t = await res.text().catch(()=> '');
-      console.error('JSON parse fail, body:', t);
-      return null;
+    const res = await fetch(WEB_APP_URL, {
+      method: 'POST',
+      body: form
+      // no headers!
     });
-    if (json && json.ok) return true;
+
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const json = await res.json();
+    if (json.ok) return true;
     console.error('Server returned ok=false:', json);
     return false;
   }catch(err){
@@ -594,6 +591,7 @@ async function syncSingleRowToGoogle(row){
     return false;
   }
 }
+
 
 
 // Drain queue hoàn chỉnh: dừng ở phần tử đầu lỗi để giữ thứ tự
@@ -846,6 +844,7 @@ function enqueueUnique(row){
 </script>
 </body>
 </html>
+
 
 
 
