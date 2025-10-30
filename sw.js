@@ -1,68 +1,56 @@
 // sw.js
-const CACHE = 'invcount-v5';
-const ASSETS = [
-  '/', '/index.html',
-  '/manifest.webmanifest',
-  '/images.png'
-];
+const CACHE = 'invcount-v4';
+const ASSETS = ['/', '/index.html', '/manifest.webmanifest', '/images.png'];
 
-// Install
-self.addEventListener('install', (e) => {
+self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)));
   self.skipWaiting();
 });
 
-// Activate: clean old caches
-self.addEventListener('activate', (e) => {
+self.addEventListener('activate', e => {
   e.waitUntil(
-    caches.keys().then(keys =>
-      Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
-    )
+    caches.keys().then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))
   );
   self.clients.claim();
 });
 
-// Helper: chỉ cache same-origin static; bỏ qua cross-origin & OPTIONS
-self.addEventListener('fetch', (e) => {
-  const req = e.request;
+self.addEventListener('fetch', e => {
+  const url = new URL(e.request.url);
 
-  // 1) Đừng intercept preflight
-  if (req.method === 'OPTIONS') return;
+  // Only handle SAME-ORIGIN. Let cross-origin (Google Apps Script) pass through.
+  if (url.origin !== self.location.origin) {
+    // Just forward
+    return; // no respondWith -> browser handles normally
+  }
 
-  const url = new URL(req.url);
-  const sameOrigin = url.origin === self.location.origin;
-
-  // 2) Bỏ qua mọi cross-origin (ví dụ: script.google.com ...)
-  if (!sameOrigin) return;
-
-  // 3) Điều kiện cache-first cho các asset tĩnh cùng origin
-  const isStatic = ASSETS.includes(url.pathname);
-
-  if (req.mode === 'navigate' || isStatic) {
+  // For navigations, offline fallback to index.html
+  if (e.request.mode === 'navigate') {
     e.respondWith(
-      caches.match(req).then(hit => hit || fetch(req).then(res => {
-        if (isStatic && res && res.status === 200) {
-          const clone = res.clone();
-          caches.open(CACHE).then(c => c.put(req, clone));
-        }
-        return res;
-      }).catch(() => caches.match('/index.html')))
+      fetch(e.request).catch(() => caches.match('/index.html'))
     );
     return;
   }
 
-  // 4) Mặc định: network-first, fallback cache
+  // Static asset cache-first
+  if (ASSETS.includes(url.pathname)) {
+    e.respondWith(
+      caches.match(e.request).then(r => r || fetch(e.request))
+    );
+    return;
+  }
+
+  // Default: network-first with cache fallback
   e.respondWith(
-    fetch(req).catch(() => caches.match(req))
+    fetch(e.request).catch(() => caches.match(e.request))
   );
 });
 
-// Background Sync: nhắc các client tự sync
-self.addEventListener('sync', (event) => {
-  if (event.tag === 'sync-logs'){
+// Background sync ping
+self.addEventListener('sync', event => {
+  if (event.tag === 'sync-logs') {
     event.waitUntil(
       self.clients.matchAll({ includeUncontrolled: true, type: 'window' })
-        .then(clients => { clients.forEach(c => c.postMessage({ type: 'SYNC_REQUEST' })); })
+        .then(clients => clients.forEach(c => c.postMessage({ type: 'SYNC_REQUEST' })))
     );
   }
 });
