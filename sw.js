@@ -1,6 +1,6 @@
 // sw.js
 const CACHE = 'invcount-v4';
-const ASSETS = ['/', '/index.html', '/manifest.webmanifest', '/images.png'];
+const ASSETS = ['/', '/index.html', '/manifest.webmanifest', '/artwork.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)));
