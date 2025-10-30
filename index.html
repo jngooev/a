@@ -569,41 +569,32 @@ function sanitizeRowForPost(row){
 }
 
 async function syncSingleRowToGoogle(row){
-  // Dùng AbortController để có timeout (tránh treo)
-  const controller = new AbortController();
-  const t = setTimeout(() => controller.abort(), 15000); // 15s
-
   try{
-    const cleanRow = sanitizeRowForPost(row);
-    const res = await fetch(WEB_APP_URL, {
-      method: 'doPost',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'appendLogs', rows: [cleanRow] }),
-      signal: controller.signal
+    const form = new URLSearchParams();
+    form.set('action', 'appendLogs');
+    form.set('rows', JSON.stringify([row]));
+
+    // KHÔNG headers -> browser tự dùng application/x-www-form-urlencoded
+    const res = await fetch(WEB_APP_URL, { method: 'POST', body: form });
+
+    if (!res.ok){
+      console.error('Server non-OK:', res.status, await res.text().catch(()=>'(no body)'));
+      return false;
+    }
+    const json = await res.json().catch(async ()=>{
+      const t = await res.text().catch(()=> '');
+      console.error('JSON parse fail, body:', t);
+      return null;
     });
-
-    // Đọc text trước -> thử parse JSON sau, để debug tốt hơn
-    const text = await res.text();
-    let json;
-    try{ json = JSON.parse(text); }catch(e){
-      console.error('Sync error: response not JSON', { status: res.status, text });
-      return false;
-    }
-
-    if (res.ok && json && json.ok === true){
-      return true;
-    } else {
-      console.error('Sync error: server returned not ok', { status: res.status, json });
-      return false;
-    }
+    if (json && json.ok) return true;
+    console.error('Server returned ok=false:', json);
+    return false;
   }catch(err){
-    // AbortError hoặc network/CORS error
     console.error('Single row sync failed:', err);
     return false;
-  }finally{
-    clearTimeout(t);
   }
 }
+
 
 // Drain queue hoàn chỉnh: dừng ở phần tử đầu lỗi để giữ thứ tự
 async function drainSyncQueue(){
@@ -855,6 +846,7 @@ function enqueueUnique(row){
 </script>
 </body>
 </html>
+
 
 
 
