@@ -135,28 +135,34 @@
     </div>
   </div>
 
-  <!-- Export Modal -->
-  <div id="exportOverlay" class="backdrop">
-    <div class="sheet">
-      <div class="title">Export Counts</div>
-      <div class="row" style="margin:8px 0">
-        <div style="flex:1">
-          <label>Date (YYYY-MM-DD)</label>
-          <input id="exportDate" placeholder="YYYY-MM-DD" />
+    <!-- Export Modal -->
+        <div id="exportOverlay" class="backdrop">
+          <div class="sheet">
+            <div class="title">Export Counts</div>
+
+            <div class="row" style="margin:8px 0">
+              <div style="flex:1">
+                <label>Date (YYYY-MM-DD)</label>
+                <input id="exportDate" placeholder="YYYY-MM-DD" />
+              </div>
+            </div>
+
+            <div class="row" style="margin:8px 0">
+              <div style="flex:1">
+                <label>Template name</label>
+                <!-- SELECT version (native dropdown look) -->
+                <select id="exportTemplateNameSelect"></select>
+              </div>
+            </div>
+
+            <div class="row-end">
+              <button id="exportCancelBtn" class="btn">Cancel</button>
+              <button id="exportGoBtn" class="btn primary">Export</button>
+            </div>
+          </div>
         </div>
-      </div>
-      <div class="row" style="margin:8px 0">
-        <div style="flex:1">
-          <label>Store • Template</label>
-          <select id="exportStoreTemplate"></select>
-        </div>
-      </div>
-      <div class="row-end">
-        <button id="exportCancelBtn" class="btn">Cancel</button>
-        <button id="exportGoBtn" class="btn primary">Export</button>
-      </div>
-    </div>
-  </div>
+
+
 
   <!-- Login & Loading -->
   <div id="loginOverlay">
@@ -705,77 +711,174 @@ function enqueueUnique(row){
     }
   }
 
-  // =============================================================
-  // 13) EXPORT UTILITIES (duplicate UoMs suppressed)
-  // =============================================================
-  function norm(s){ return String(s||'').trim().toLowerCase(); }
-  function localDateKey(iso, tzName=tz){ if(!iso) return ''; const d=new Date(iso); if(isNaN(d)) return ''; return new Intl.DateTimeFormat('en-CA',{timeZone:tzName,year:'numeric',month:'2-digit',day:'2-digit'}).format(d); }
-  function buildDailyLatestRowByItem(logs, dateStr){ const map=new Map(); for(const log of logs){ const iso=normalizeDateTimeStr(log.count_on); if(!iso) continue; if(localDateKey(iso,tz)!==dateStr) continue; const nameKey=norm(log.item); if(!nameKey) continue; const t=new Date(iso).getTime(); const prev=map.get(nameKey); if(!prev || t>prev._t) map.set(nameKey,{...log,_t:t}); } return map; }
-  function qtyFromLogByUofm(log, uofm){ if(!log||!uofm) return ''; const target=norm(uofm); for(let i=1;i<=3;i++){ const U=norm(log[`count_uofm_${i}`]||''); if(U && U===target){ const q=Number(log[`quantity_${i}`]); return Number.isFinite(q)?q:''; } } return ''; }
-  function toCSV(rows){ if(!rows.length) return ''; const headers=Object.keys(rows[0]); const esc=s=>{ const t=String(s??'').replace(/"/g,'""'); return /[",\n]/.test(t)?`"${t}"`:t; }; return [headers.join(',')].concat(rows.map(r=>headers.map(h=>esc(r[h])).join(','))).join('\n'); }
-  function download(name, text){ const blob=new Blob([text],{type:'text/csv'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name; document.body.appendChild(a); a.click(); a.remove(); }
-
-  function openExportModal(){
-    $('#exportDate').value=today();
-    const sel=$('#exportStoreTemplate'); sel.innerHTML='';
-    const opts=[]; for (const [key] of state.byStoreTmpl){ const [store,tmpl]=key.split('|'); opts.push({key,store,tmpl}); }
-    opts.sort((a,b)=> (a.store.localeCompare(b.store) || a.tmpl.localeCompare(b.tmpl)) );
-    for(const o of opts){ const el=document.createElement('option'); el.value=o.key; el.textContent=`${o.store} • ${o.tmpl}`; if (state.currentStore && state.currentTemplate && `${state.currentStore}|${state.currentTemplate}`===o.key) el.selected=true; sel.appendChild(el); }
-    $('#exportOverlay').style.display='flex';
+// =============================================================
+// 13) EXPORT UTILITIES — native <select> for Template name
+// =============================================================
+function norm(s){ return String(s||'').trim().toLowerCase(); }
+function localDateKey(iso, tzName=tz){
+  if(!iso) return '';
+  const d=new Date(iso); if(isNaN(d)) return '';
+  return new Intl.DateTimeFormat('en-CA',{timeZone:tzName,year:'numeric',month:'2-digit',day:'2-digit'}).format(d);
+}
+function qtyFromLogByUofm(log, uofm){
+  if(!log||!uofm) return '';
+  const target=norm(uofm);
+  for(let i=1;i<=3;i++){
+    const U=norm(log[`count_uofm_${i}`]||'');
+    if(U && U===target){
+      const q=Number(log[`quantity_${i}`]);
+      return Number.isFinite(q)?q:'';
+    }
   }
-  function closeExportModal(){ $('#exportOverlay').style.display='none'; }
+  return '';
+}
+function toCSV(rows){
+  if(!rows.length) return '';
+  const headers=Object.keys(rows[0]);
+  const esc=s=>{ const t=String(s??'').replace(/"/g,'""'); return /[",\n]/.test(t)?`"${t}"`:t; };
+  return [headers.join(',')].concat(rows.map(r=>headers.map(h=>esc(r[h])).join(','))).join('\n');
+}
+function download(name, text){
+  const blob=new Blob([text],{type:'text/csv'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name;
+  document.body.appendChild(a); a.click(); a.remove();
+}
 
-  async function runExport(){
-    const dateStr=($('#exportDate').value||'').trim();
-    const key=$('#exportStoreTemplate').value;
-    if(!dateStr){ alert('Enter a date (YYYY-MM-DD)'); return; }
-    if(!key){ alert('Choose Store • Template'); return; }
-    const rows=state.byStoreTmpl.get(key) || [];
-    if(!rows.length){ alert('No items under selected Store • Template'); return; }
+// Read Template rows from Template sheet by Template name (case-insensitive)
+async function fetchTemplateRowsByName(tmplName){
+  const res = await fetch(`${WEB_APP_URL}?nocache=${Date.now()}`);
+  const j   = await res.json();
+  if(!j.ok || !Array.isArray(j.data)) throw new Error('Failed to load Template sheet');
 
-    showLoading();
+  const target = norm(tmplName);
+  const out = [];
+  for(const rec of j.data){
+    const low = Object.fromEntries(Object.entries(rec).map(([k,v])=>[String(k).toLowerCase().trim(), v]));
+    const tmpl = norm(low['template name'] || low['template_name'] || low['template'] || '');
+    if(!tmpl || tmpl !== target) continue;
+
+    out.push({
+      storage_location: low['storage_location'] || '',
+      item            : low['item'] || '',
+      count_id        : low['count_id'] || '',
+      u1              : low['uof_m']   || low['uofm']   || '',
+      u2              : low['uof_m_2'] || low['uofm_2'] || '',
+      u3              : low['uof_m_3'] || low['uofm_3'] || ''
+    });
+  }
+  return out;
+}
+
+// Latest log within chosen local DATE by count_id
+function buildDailyLatestByCountId(logs, dateStr){
+  const m = new Map();
+  for(const log of logs){
+    const iso = normalizeDateTimeStr(log.count_on);
+    if(!iso) continue;
+    if(localDateKey(iso, tz) !== dateStr) continue;
+
+    const key = norm(log.count_id);
+    if(!key) continue;
+
+    const t = new Date(iso).getTime();
+    const prev = m.get(key);
+    if(!prev || t > prev._t) m.set(key, {...log, _t: t});
+  }
+  return m;
+}
+
+// Open modal: populate <select> with UNIQUE template names (no store shown)
+function openExportModal(){
+  $('#exportDate').value = today();
+
+  const sel = $('#exportTemplateNameSelect');
+  if (sel){
+    sel.innerHTML = '';
+
+    const namesSet = new Set(state.template.map(r => r.template_name).filter(Boolean));
+    const names = Array.from(namesSet).sort((a,b)=> String(a).localeCompare(String(b)));
+
+    for (const name of names){
+      const opt = document.createElement('option');
+      opt.value = name;          // value = Template name
+      opt.textContent = name;    // label = Template name
+      if (state.currentTemplate && state.currentTemplate === name) opt.selected = true;
+      sel.appendChild(opt);
+    }
+    sel.style.display = 'block';
+  }
+
+  $('#exportOverlay').style.display='flex';
+}
+function closeExportModal(){ $('#exportOverlay').style.display='none'; }
+
+// Export runner: uses selected Template name + Date
+async function runExport(){
+  const dateStr = ($('#exportDate').value||'').trim();
+  const templateName = ($('#exportTemplateNameSelect')?.value||'').trim();
+
+  if(!dateStr){ alert('Enter a date (YYYY-MM-DD)'); return; }
+  if(!templateName){ alert('Choose a Template'); return; }
+
+  showLoading();
+  try{
+    // 1) Fetch rows for this Template name
+    const rows = await fetchTemplateRowsByName(templateName);
+    if(!rows.length){ alert('No items for this Template in Template sheet.'); return; }
+
+    // 2) Load logs
+    let logs=[];
     try{
-      // Fresh logs
-      let logs=[]; try{ const res=await fetch(`${WEB_APP_URL}?mode=logs&nocache=${Date.now()}`); const json=await res.json(); if(json.ok && Array.isArray(json.data)){ logs=json.data.map(r=>({...r, count_on:normalizeDateTimeStr(r.count_on), quantity_1:r.quantity_1===''||r.quantity_1==null?null:parseFloat(r.quantity_1), quantity_2:r.quantity_2===''||r.quantity_2==null?null:parseFloat(r.quantity_2), quantity_3:r.quantity_3===''||r.quantity_3==null?null:parseFloat(r.quantity_3)})); } }catch{ alert('Failed to load logs for export.'); return; }
+      const res = await fetch(`${WEB_APP_URL}?mode=logs&nocache=${Date.now()}`);
+      const json = await res.json();
+      if(json.ok && Array.isArray(json.data)){
+        logs = json.data.map(r => ({
+          ...r,
+          count_on : normalizeDateTimeStr(r.count_on),
+          quantity_1: r.quantity_1===''||r.quantity_1==null?null:parseFloat(r.quantity_1),
+          quantity_2: r.quantity_2===''||r.quantity_2==null?null:parseFloat(r.quantity_2),
+          quantity_3: r.quantity_3===''||r.quantity_3==null?null:parseFloat(r.quantity_3),
+        }));
+      } else { alert('Failed to load logs for export.'); return; }
+    }catch{ alert('Failed to load logs for export.'); return; }
 
-      // Optional itemdetail lookup
-      const itemDetailMap=new Map();
-      try{
-        const r2=await fetch(`${WEB_APP_URL}?mode=itemdetail&nocache=${Date.now()}`); const j2=await r2.json();
-        if(j2.ok && Array.isArray(j2.data)){
-          for(const rec of j2.data){
-            const low=Object.fromEntries(Object.entries(rec).map(([k,v])=>[String(k).toLowerCase().trim(), v]));
-            const nameKey=norm(low.name || low.itemname);
-            if(!nameKey) continue;
-            itemDetailMap.set(nameKey, { U1: low.inventoryuofm || '', U2: low.countuofm2 || '', U3: low.countuofm3 || '' });
-          }
-        }
-      }catch{}
+    // 3) Latest-per-count_id for that DATE
+    const latestByCount = buildDailyLatestByCountId(logs, dateStr);
 
-      const latestByItem=buildDailyLatestRowByItem(logs, dateStr);
-      const out=[];
-      for(const r of rows){
-        const nameKey=norm(r.item);
-        const det=itemDetailMap.get(nameKey)||{};
-        const U1raw=det.U1 || r.uof_m || '';
-        const U2raw=det.U2 || r.uof_m_2 || '';
-        const U3raw=det.U3 || r.uof_m_3 || '';
-        // suppress duplicates
-        const U1=U1raw || '';
-        const U2=(!U2raw || norm(U2raw)===norm(U1)) ? '' : U2raw;
-        const U3=(!U3raw || norm(U3raw)===norm(U1) || norm(U3raw)===norm(U2raw)) ? '' : U3raw;
-        const latest=latestByItem.get(nameKey);
-        const q1=U1?qtyFromLogByUofm(latest,U1):'';
-        const q2=U2?qtyFromLogByUofm(latest,U2):'';
-        const q3=U3?qtyFromLogByUofm(latest,U3):'';
-        out.push({ StorageLocation:r.storage_location||'', Item:r.item||'', UofM:U1, Qty:q1, UofM2:U2, Qty2:q2, UofM3:U3, Qty3:q3 });
-      }
-      if(!out.length){ alert('Nothing to export.'); return; }
-      const csv=toCSV(out);
-      download(`count_export_${key.replace('|','__')}_${dateStr}.csv`, csv);
-      closeExportModal();
-    } finally { hideLoading(); }
+    // 4) Build CSV — match Qty by UoM name; suppress duplicate UoMs
+    const out = [];
+    for(const r of rows){
+      const U1raw = r.u1 || '';
+      const U2raw = r.u2 || '';
+      const U3raw = r.u3 || '';
+
+      const U1 = U1raw || '';
+      const U2 = (!U2raw || norm(U2raw)===norm(U1)) ? '' : U2raw;
+      const U3 = (!U3raw || norm(U3raw)===norm(U1) || norm(U3raw)===norm(U2raw)) ? '' : U3raw;
+
+      const latest = latestByCount.get(norm(r.count_id));
+      const q1 = U1 ? qtyFromLogByUofm(latest, U1) : '';
+      const q2 = U2 ? qtyFromLogByUofm(latest, U2) : '';
+      const q3 = U3 ? qtyFromLogByUofm(latest, U3) : '';
+
+      out.push({
+        StorageLocation: r.storage_location || '',
+        Item           : r.item || '',
+        UofM           : U1,  Qty : q1,
+        UofM2          : U2,  Qty2: q2,
+        UofM3          : U3,  Qty3: q3
+      });
+    }
+
+    if(!out.length){ alert('Nothing to export.'); return; }
+    const safeTmpl = templateName.replace(/[^\w\-]+/g,'_');
+    const csv = toCSV(out);
+    download(`count_export_${safeTmpl}_${dateStr}.csv`, csv);
+    closeExportModal();
+  } finally {
+    hideLoading();
   }
+}
 
   // =============================================================
   // 14) AUTH
@@ -844,7 +947,6 @@ function enqueueUnique(row){
 </script>
 </body>
 </html>
-
 
 
 
